@@ -1,0 +1,105 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800;900&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+:root {
+  --void-black: #0a0a0f;
+  --deep-night: #12121a;
+  --dark-surface: #1a1a2e;
+  --card-bg: #16162a;
+  --border-subtle: #2a2a4a;
+  --accent-gold: #c8a84e;
+  --accent-gold-light: #e0c068;
+  --accent-gold-dim: #8a6e2f;
+  --accent-red: #c43a3a;
+  --accent-red-light: #e05555;
+  --parchment: #e8e0d0;
+  --parchment-dim: #a89880;
+  --text-primary: #f0ece4;
+  --text-secondary: #f0ece4;
+  --text-muted: #a8a8bc;
+  --grade-common: #9d9d9d;
+  --grade-uncommon: #1eff00;
+  --grade-rare: #0070dd;
+  --grade-epic: #a335ee;
+  --grade-legendary: #ff8000;
+}
+
+@theme inline {
+  --color-void-black: var(--void-black);
+  --color-deep-night: var(--deep-night);
+  --color-dark-surface: var(--dark-surface);
+  --color-card-bg: var(--card-bg);
+  --color-border-subtle: var(--border-subtle);
+  --color-accent-gold: var(--accent-gold);
+  --color-accent-gold-light: var(--accent-gold-light);
+  --color-accent-gold-dim: var(--accent-gold-dim);
+  --color-accent-red: var(--accent-red);
+  --color-accent-red-light: var(--accent-red-light);
+  --color-parchment: var(--parchment);
+  --color-parchment-dim: var(--parchment-dim);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --font-heading: 'Cinzel', serif;
+  --font-body: 'DM Sans', sans-serif;
+  --color-grade-common: var(--grade-common);
+  --color-grade-uncommon: var(--grade-uncommon);
+  --color-grade-rare: var(--grade-rare);
+  --color-grade-epic: var(--grade-epic);
+  --color-grade-legendary: var(--grade-legendary);
+}
+
+body {
+  background: var(--void-black);
+  color: var(--text-primary);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 18px;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Cinzel', serif;
+}
+
+/* Diamond divider */
+.diamond-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+}
+.diamond-divider::before,
+.diamond-divider::after {
+  content: '';
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(90deg, transparent, var(--accent-gold-dim), transparent);
+}
+.diamond-divider .diamond {
+  width: 8px;
+  height: 8px;
+  background: var(--accent-gold);
+  transform: rotate(45deg);
+}
+
+/* Glow effects */
+.glow-gold {
+  box-shadow: 0 0 20px rgba(200, 168, 78, 0.15);
+}
+.glow-gold-hover:hover {
+  box-shadow: 0 0 30px rgba(200, 168, 78, 0.25);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--void-black);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-gold-dim);
+}
