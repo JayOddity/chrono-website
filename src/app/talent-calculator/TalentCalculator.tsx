@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import Image from 'next/image';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   TALENT_DATA,
   CLASS_RESOURCES,
@@ -10,338 +12,667 @@ import {
   type WeaponTree,
 } from '@/data/talent-calculator';
 
-// --- Types ---
-type NodeLevels = Record<number, number>; // masteryId -> allocated level
+type NodeLevels = Record<number, number>;
 
-// --- Constants ---
-const CLASS_ICONS: Record<string, string> = {
-  Swordman: '\u2694\uFE0F',
-  Archer: '\uD83C\uDFF9',
-  Paladin: '\uD83D\uDEE1\uFE0F',
-  Sorcerer: '\uD83D\uDD2E',
-  Berserker: '\uD83E\uDE93',
-  Assassin: '\uD83D\uDDE1\uFE0F',
+const CLASS_SLUG: Record<string, string> = {
+  Swordman: 'swordsman',
+  Archer: 'ranger',
+  Paladin: 'paladin',
+  Sorcerer: 'sorcerer',
+  Berserker: 'berserker',
+  Assassin: 'assassin',
 };
 
-const TYPE_COLORS: Record<string, string> = {
-  Active: 'border-blue-500',
-  ActiveEnforce: 'border-purple-500',
-  Passive: 'border-green-500',
-  PassiveSynergy: 'border-yellow-500',
-  SpecialAction: 'border-accent-gold',
-};
-
-const TYPE_BG: Record<string, string> = {
-  Active: 'bg-blue-500/10',
-  ActiveEnforce: 'bg-purple-500/10',
-  Passive: 'bg-green-500/10',
-  PassiveSynergy: 'bg-yellow-500/10',
-  SpecialAction: 'bg-accent-gold/10',
-};
-
-const TYPE_GLOW: Record<string, string> = {
-  Active: 'shadow-blue-500/30',
-  ActiveEnforce: 'shadow-purple-500/30',
-  Passive: 'shadow-green-500/30',
-  PassiveSynergy: 'shadow-yellow-500/30',
-  SpecialAction: 'shadow-accent-gold/30',
+const WEAPON_ICON: Record<string, string> = {
+  GreatSword: 'TX_ClassIcon_GreatSword',
+  LongSword: 'TX_ClassIcon_LongSword',
+  DualSwords: 'TX_ClassIcon_DualSwords',
+  LongBow: 'TX_ClassIcon_LongBow',
+  Crossbows: 'TX_ClassIcon_Crossbows',
+  Rapier: 'TX_ClassIcon_Rapier',
+  Lance: 'TX_ClassIcon_Lance',
+  Halberd: 'TX_ClassIcon_Halberd',
+  Mace: 'TX_ClassIcon_Mace',
+  Staff: 'TX_ClassIcon_Staff',
+  MagicOrb: 'TX_ClassIcon_MagicOrb',
+  Spellbook: 'TX_ClassIcon_Spellbook',
+  ChainSwords: 'TX_ClassIcon_ChainSwords',
+  Hatchets: 'TX_ClassIcon_Hatchets',
+  BattleAxe: 'TX_ClassIcon_BattleAxe',
+  Sabre: 'TX_ClassIcon_Sabre',
+  WristBlades: 'TX_ClassIcon_WristBlades',
+  Musket: 'TX_ClassIcon_Musket',
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  Active: 'Active Skill',
-  ActiveEnforce: 'Enhanced Skill',
+  Active: 'Active',
+  ActiveEnforce: 'Enhancement',
   Passive: 'Passive',
-  PassiveSynergy: 'Synergy Passive',
-  SpecialAction: 'Special Action',
+  PassiveSynergy: 'Synergy',
+  SpecialAction: 'Special Move',
 };
 
-// --- Helper functions ---
-function canAllocate(
-  node: WeaponMasteryNode,
-  levels: NodeLevels,
-  weaponNodes: WeaponMasteryNode[],
-): boolean {
+const RESOURCE_COLORS: Record<string, string> = {
+  Rage: '#f87171',
+  Vigor: '#4ade80',
+  Mana: '#60a5fa',
+  Vigor2: '#2dd4bf',
+};
+
+const HEXAGON_CLIP = 'polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)';
+
+// Grid constants — 6 columns filling the tree panel width
+const NODE_SIZE = 80; // px for Active circles
+const HEX_SIZE = 68;  // px for hexagons
+const COL_SPACING = 150; // center-to-center horizontal
+const ROW_SPACING = 115; // center-to-center vertical
+
+// --- URL State ---
+function encodeState(classIdx: number, weaponIdx: number, levels: NodeLevels, masterySet: Set<number>): string {
+  const lvlPairs = Object.entries(levels).filter(([, v]) => v > 0).map(([k, v]) => `${k}:${v}`).join(',');
+  const masteryStr = Array.from(masterySet).join(',');
+  const parts: string[] = [`c=${classIdx}`, `w=${weaponIdx}`];
+  if (lvlPairs) parts.push(`n=${lvlPairs}`);
+  if (masteryStr) parts.push(`m=${masteryStr}`);
+  return parts.join('&');
+}
+
+function decodeState(search: string) {
+  const params = new URLSearchParams(search);
+  const classIdx = parseInt(params.get('c') || '0', 10) || 0;
+  const weaponIdx = parseInt(params.get('w') || '0', 10) || 0;
+  const levels: NodeLevels = {};
+  const nStr = params.get('n') || '';
+  if (nStr) for (const pair of nStr.split(',')) { const [k, v] = pair.split(':'); if (k && v) levels[Number(k)] = Number(v); }
+  const masterySet = new Set<number>();
+  const mStr = params.get('m') || '';
+  if (mStr) for (const id of mStr.split(',')) { if (id) masterySet.add(Number(id)); }
+  return { classIdx, weaponIdx, levels, masterySet };
+}
+
+// --- Game Logic ---
+function canAllocate(node: WeaponMasteryNode, levels: NodeLevels, weaponNodes: WeaponMasteryNode[]): boolean {
   if (node.maxLevel === 0) return false;
-  const current = levels[node.id] || 0;
-  if (current >= node.maxLevel) return false;
-
-  // Check mastery level requirement (total points spent in this weapon tree)
+  if ((levels[node.id] || 0) >= node.maxLevel) return false;
   const totalSpent = weaponNodes.reduce((sum, n) => sum + (levels[n.id] || 0), 0);
   if (totalSpent < node.needMasteryLevel) return false;
-
-  // Check prerequisites
-  if (node.prereq1) {
-    const prereqLevel = levels[node.prereq1.id] || 0;
-    if (prereqLevel < node.prereq1.level) return false;
-  }
-  if (node.prereq2) {
-    const prereqLevel = levels[node.prereq2.id] || 0;
-    if (prereqLevel < node.prereq2.level) return false;
-  }
-
+  if (node.prereq1 && (levels[node.prereq1.id] || 0) < node.prereq1.level) return false;
+  if (node.prereq2 && (levels[node.prereq2.id] || 0) < node.prereq2.level) return false;
   return true;
 }
 
-function isNodeUnlocked(
-  node: WeaponMasteryNode,
-  levels: NodeLevels,
-  weaponNodes: WeaponMasteryNode[],
-): boolean {
-  if (node.maxLevel === 0) return true; // SpecialAction always shown
-  const totalSpent = weaponNodes.reduce((sum, n) => sum + (levels[n.id] || 0), 0);
-  if (totalSpent < node.needMasteryLevel) return false;
-  if (node.prereq1) {
-    const prereqLevel = levels[node.prereq1.id] || 0;
-    if (prereqLevel < node.prereq1.level) return false;
-  }
-  if (node.prereq2) {
-    const prereqLevel = levels[node.prereq2.id] || 0;
-    if (prereqLevel < node.prereq2.level) return false;
-  }
+// Visual unlock: only checks skill prereqs, NOT mastery level spent.
+// Mastery level is a soft gate (handled in canAllocate) — nodes should still
+// look selectable/visible even before you've spent enough total points.
+function isNodeUnlocked(node: WeaponMasteryNode, levels: NodeLevels, _weaponNodes: WeaponMasteryNode[]): boolean {
+  if (node.maxLevel === 0) return true;
+  if (node.prereq1 && (levels[node.prereq1.id] || 0) < node.prereq1.level) return false;
+  if (node.prereq2 && (levels[node.prereq2.id] || 0) < node.prereq2.level) return false;
   return true;
 }
 
-// --- Components ---
-
-function TalentNode({
-  node,
-  level,
-  unlocked,
-  canLevel,
-  onAllocate,
-  onDeallocate,
-  weaponNodes,
-  levels,
-}: {
-  node: WeaponMasteryNode;
-  level: number;
-  unlocked: boolean;
-  canLevel: boolean;
-  onAllocate: () => void;
-  onDeallocate: () => void;
-  weaponNodes: WeaponMasteryNode[];
-  levels: NodeLevels;
+// --- Tooltip (game-style, appears to the right of tree) ---
+function NodeTooltip({ node, levels, weaponNodes, resourceName }: {
+  node: WeaponMasteryNode; levels: NodeLevels; weaponNodes: WeaponMasteryNode[]; resourceName: string;
 }) {
-  const [showTooltip, setShowTooltip] = useState(false);
-  const isMaxed = level >= node.maxLevel;
-  const isSpecial = node.type === 'SpecialAction';
-  const hasPoints = level > 0;
-
-  const borderColor = hasPoints
-    ? isMaxed
-      ? 'border-accent-gold'
-      : TYPE_COLORS[node.type]
-    : unlocked
-      ? 'border-border-subtle'
-      : 'border-border-subtle/40';
-
-  const bgColor = hasPoints ? TYPE_BG[node.type] : 'bg-card-bg/60';
-  const textColor = hasPoints
-    ? 'text-text-primary'
-    : unlocked
-      ? 'text-text-muted'
-      : 'text-text-muted/40';
-
-  // Find prerequisite names for tooltip
-  const prereqNames: string[] = [];
+  const level = levels[node.id] || 0;
+  const prereqInfo: { name: string; current: number; required: number }[] = [];
   if (node.prereq1) {
-    const p = weaponNodes.find((n) => n.id === node.prereq1!.id);
-    if (p) prereqNames.push(`${p.name} Lv${node.prereq1.level}`);
+    const p = weaponNodes.find(n => n.id === node.prereq1!.id);
+    if (p) prereqInfo.push({ name: p.name, current: levels[node.prereq1.id] || 0, required: node.prereq1.level });
   }
   if (node.prereq2) {
-    const p = weaponNodes.find((n) => n.id === node.prereq2!.id);
-    if (p) prereqNames.push(`${p.name} Lv${node.prereq2.level}`);
+    const p = weaponNodes.find(n => n.id === node.prereq2!.id);
+    if (p) prereqInfo.push({ name: p.name, current: levels[node.prereq2.id] || 0, required: node.prereq2.level });
   }
 
   return (
     <div
+      className="absolute z-[100] pointer-events-none"
+      style={{
+        left: '100%',
+        top: '50%',
+        transform: 'translateY(-50%)',
+        marginLeft: 16,
+        width: 280,
+        filter: 'drop-shadow(0 4px 24px rgba(0,0,0,0.9))',
+      }}
+    >
+      <div style={{
+        background: 'rgba(10,10,18,0.95)',
+        border: '1px solid rgba(200,168,78,0.3)',
+        borderRadius: 8,
+        padding: '14px 16px',
+        backdropFilter: 'blur(12px)',
+      }}>
+        {/* Name + type */}
+        <div className="font-heading text-[15px] text-accent-gold leading-tight">{node.name}</div>
+        <div className="text-[11px] mt-1" style={{ color: '#a8a8bc' }}>{TYPE_LABELS[node.type]}</div>
+
+        {/* Description */}
+        {node.description && (
+          <p className="text-[12px] text-text-muted leading-relaxed mt-3" style={{ whiteSpace: 'pre-line' }}>
+            {node.description}
+          </p>
+        )}
+
+        {/* Cooldown + costs */}
+        {(node.cooldown > 0 || node.resourceCost > 0 || node.staminaCost > 0 || node.hpCost > 0) && (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 pt-2 border-t" style={{ borderColor: 'rgba(200,168,78,0.15)' }}>
+            {node.cooldown > 0 && (
+              <span className="flex items-center gap-1 text-[11px] text-text-muted">
+                <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/><path d="M8 4v4l3 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                <span className="text-text-primary">{node.cooldown}s</span>
+              </span>
+            )}
+            {node.resourceCost > 0 && (
+              <span className="text-[11px] text-text-muted">
+                {resourceName}: <span style={{ color: RESOURCE_COLORS[resourceName] || '#e0c068' }}>{node.resourceCost}</span>
+              </span>
+            )}
+            {node.staminaCost > 0 && (
+              <span className="text-[11px] text-text-muted">Stamina: <span className="text-text-primary">{node.staminaCost}</span></span>
+            )}
+            {node.hpCost > 0 && (
+              <span className="text-[11px] text-text-muted">HP: <span className="text-red-400">{node.hpCost}%</span></span>
+            )}
+          </div>
+        )}
+
+        {/* Level */}
+        {node.maxLevel > 0 && (
+          <div className="flex items-center gap-2 mt-3 pt-2 border-t" style={{ borderColor: 'rgba(200,168,78,0.15)' }}>
+            <span className="text-[11px] text-text-muted">Level</span>
+            <div className="flex gap-0.5 flex-1">
+              {Array.from({ length: node.maxLevel }).map((_, i) => (
+                <div key={i} className="flex-1 h-1.5 rounded-sm" style={{
+                  background: i < level ? '#c8a84e' : 'rgba(42,42,74,0.6)',
+                }} />
+              ))}
+            </div>
+            <span className="text-[11px] font-bold" style={{ color: level >= node.maxLevel ? '#c8a84e' : '#a8a8bc' }}>
+              {level}/{node.maxLevel}
+            </span>
+          </div>
+        )}
+
+        {/* Prerequisites */}
+        {(node.needMasteryLevel > 0 || prereqInfo.length > 0) && (
+          <div className="mt-3 pt-2 border-t space-y-1" style={{ borderColor: 'rgba(200,168,78,0.15)' }}>
+            {node.needMasteryLevel > 0 && (
+              <p className="text-[11px] text-text-muted">
+                Unlocks at Mastery Level {node.needMasteryLevel}
+              </p>
+            )}
+            {prereqInfo.map((p, i) => (
+              <p key={i} className="text-[11px]" style={{ color: '#d97706' }}>
+                {p.name} : {p.current}/{p.required}
+              </p>
+            ))}
+          </div>
+        )}
+
+        {/* Usage hint */}
+        {node.maxLevel > 0 && (
+          <p className="text-[10px] mt-3 pt-2 border-t" style={{ borderColor: 'rgba(200,168,78,0.15)', color: 'rgba(168,168,188,0.4)' }}>
+            Click to allocate / Right-click to remove
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- Node Component ---
+function TalentNode({ node, level, unlocked, canLevel, onAllocate, onDeallocate, weaponNodes, levels, resourceName }: {
+  node: WeaponMasteryNode; level: number; unlocked: boolean; canLevel: boolean;
+  onAllocate: () => void; onDeallocate: () => void;
+  weaponNodes: WeaponMasteryNode[]; levels: NodeLevels; resourceName: string;
+}) {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const isMaxed = level >= node.maxLevel && node.maxLevel > 0;
+  const isSpecial = node.type === 'SpecialAction';
+  const hasPoints = level > 0;
+  const isCircle = node.type === 'Active';
+  const isEnforce = node.type === 'ActiveEnforce';
+  const size = isCircle ? NODE_SIZE : HEX_SIZE;
+
+  // State-based styling
+  const getNodeStyle = (): React.CSSProperties => {
+    const base: React.CSSProperties = {
+      width: size,
+      height: size,
+      position: 'relative',
+      cursor: isSpecial && node.maxLevel === 0 ? 'default' : canLevel || hasPoints ? 'pointer' : 'default',
+    };
+
+    if (isCircle) {
+      base.borderRadius = '50%';
+      if (isMaxed) {
+        base.border = '2px solid #e0c068';
+        base.background = 'radial-gradient(circle, rgba(200,168,78,0.25) 0%, rgba(200,168,78,0.08) 100%)';
+        base.boxShadow = '0 0 16px rgba(200,168,78,0.4), inset 0 0 12px rgba(200,168,78,0.15)';
+      } else if (hasPoints) {
+        base.border = '2px solid rgba(224,192,104,0.7)';
+        base.background = 'radial-gradient(circle, rgba(200,168,78,0.15) 0%, rgba(200,168,78,0.05) 100%)';
+        base.boxShadow = '0 0 10px rgba(200,168,78,0.25)';
+      } else if (unlocked) {
+        base.border = '2px solid rgba(224,192,104,0.35)';
+        base.background = 'rgba(10,10,15,0.4)';
+      } else {
+        base.border = '2px solid rgba(60,60,80,0.4)';
+        base.background = 'rgba(10,10,15,0.3)';
+      }
+    } else {
+      // Hexagon
+      base.clipPath = HEXAGON_CLIP;
+      if (isMaxed) {
+        base.background = 'linear-gradient(180deg, rgba(200,168,78,0.3) 0%, rgba(200,168,78,0.1) 100%)';
+      } else if (hasPoints) {
+        base.background = 'linear-gradient(180deg, rgba(200,168,78,0.2) 0%, rgba(200,168,78,0.06) 100%)';
+      } else if (unlocked) {
+        base.background = 'rgba(30,30,50,0.5)';
+      } else {
+        base.background = 'rgba(15,15,25,0.4)';
+      }
+    }
+
+    return base;
+  };
+
+  // Hexagon border: we need an outer hex with border color, and inner hex with bg
+  const getHexBorderColor = (): string => {
+    if (isMaxed) return 'rgba(224,192,104,0.8)';
+    if (hasPoints) return 'rgba(224,192,104,0.55)';
+    if (unlocked) return 'rgba(224,192,104,0.25)';
+    return 'rgba(60,60,80,0.35)';
+  };
+
+  const iconFilter = (() => {
+    if (hasPoints || isMaxed) return 'brightness(1.4) drop-shadow(0 0 4px rgba(224,192,104,0.3))';
+    if (isSpecial) return 'brightness(0.9)';
+    if (unlocked) return 'brightness(0.55)';
+    return 'brightness(0.2)';
+  })();
+
+  const opacity = !unlocked && !hasPoints && !isSpecial ? 0.5 : 1;
+
+  return (
+    <div
       className="relative"
+      style={{ width: size, height: size + 18, opacity }}
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
     >
-      <button
-        onClick={(e) => {
-          if (e.shiftKey || e.button === 2) {
-            onDeallocate();
-          } else {
-            if (canLevel) onAllocate();
-          }
-        }}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          onDeallocate();
-        }}
-        disabled={isSpecial && node.maxLevel === 0}
-        className={`
-          w-full aspect-square rounded-lg border-2 ${borderColor} ${bgColor}
-          flex flex-col items-center justify-center gap-0.5 p-1
-          transition-all duration-200 cursor-pointer
-          ${canLevel ? 'hover:brightness-125 hover:shadow-lg ' + TYPE_GLOW[node.type] : ''}
-          ${hasPoints && isMaxed ? 'shadow-md shadow-accent-gold/20' : ''}
-          ${!unlocked && !hasPoints ? 'opacity-40' : ''}
-          disabled:cursor-default
-        `}
-      >
-        {/* Type indicator dot */}
-        <div
-          className={`w-1.5 h-1.5 rounded-full ${
-            node.type === 'Active' || node.type === 'ActiveEnforce'
-              ? 'bg-blue-400'
-              : node.type === 'SpecialAction'
-                ? 'bg-accent-gold'
-                : 'bg-green-400'
-          }`}
-        />
-
-        {/* Name */}
-        <span
-          className={`text-[10px] sm:text-xs leading-tight text-center font-medium ${textColor} line-clamp-2`}
+      {/* The node button */}
+      {isCircle ? (
+        <button
+          onClick={() => { if (canLevel) onAllocate(); }}
+          onContextMenu={(e) => { e.preventDefault(); onDeallocate(); }}
+          disabled={isSpecial && node.maxLevel === 0}
+          className="flex items-center justify-center transition-all duration-150 hover:brightness-110"
+          style={getNodeStyle()}
         >
-          {node.name}
-        </span>
-
-        {/* Level indicator */}
-        {node.maxLevel > 0 && (
-          <span
-            className={`text-[10px] font-bold ${
-              isMaxed ? 'text-accent-gold' : hasPoints ? 'text-accent-gold-light' : 'text-text-muted/60'
-            }`}
+          {node.icon && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={node.icon} alt=""
+              className="object-contain"
+              style={{ width: '62%', height: '62%', filter: iconFilter, transition: 'filter 0.15s' }}
+            />
+          )}
+        </button>
+      ) : (
+        /* Hexagon: outer border hex + inner hex */
+        <button
+          onClick={() => { if (canLevel) onAllocate(); }}
+          onContextMenu={(e) => { e.preventDefault(); onDeallocate(); }}
+          disabled={isSpecial && node.maxLevel === 0}
+          className="flex items-center justify-center transition-all duration-150"
+          style={{
+            width: size,
+            height: size,
+            clipPath: HEXAGON_CLIP,
+            background: getHexBorderColor(),
+            cursor: isSpecial && node.maxLevel === 0 ? 'default' : canLevel || hasPoints ? 'pointer' : 'default',
+            position: 'relative',
+          }}
+        >
+          {/* Inner hex (2px inset for border effect) */}
+          <div
+            className="flex items-center justify-center"
+            style={{
+              width: size - 4,
+              height: size - 4,
+              clipPath: HEXAGON_CLIP,
+              ...((() => {
+                if (isMaxed) return { background: 'linear-gradient(180deg, rgba(200,168,78,0.3) 0%, rgba(20,18,12,0.95) 100%)' };
+                if (hasPoints) return { background: 'linear-gradient(180deg, rgba(200,168,78,0.18) 0%, rgba(14,14,22,0.95) 100%)' };
+                if (unlocked) return { background: 'linear-gradient(180deg, rgba(26,26,42,0.8) 0%, rgba(12,12,20,0.95) 100%)' };
+                return { background: 'rgba(12,12,20,0.9)' };
+              })()),
+            }}
           >
-            {level}/{node.maxLevel}
-          </span>
-        )}
-      </button>
+            {node.icon && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={node.icon} alt=""
+                className="object-contain"
+                style={{ width: '58%', height: '58%', filter: iconFilter, transition: 'filter 0.15s' }}
+              />
+            )}
+          </div>
+        </button>
+      )}
+
+      {/* "E" badge for ActiveEnforce */}
+      {isEnforce && (
+        <div style={{
+          position: 'absolute',
+          top: -2,
+          left: -2,
+          width: 18,
+          height: 18,
+          borderRadius: '50%',
+          background: '#22c55e',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 10,
+          fontWeight: 700,
+          color: '#fff',
+          zIndex: 10,
+          border: '2px solid rgba(10,10,15,0.8)',
+        }}>
+          E
+        </div>
+      )}
+
+      {/* Maxed glow for hexagons */}
+      {isMaxed && !isCircle && (
+        <div style={{
+          position: 'absolute',
+          top: -4,
+          left: -4,
+          right: -4,
+          bottom: 14,
+          clipPath: HEXAGON_CLIP,
+          boxShadow: '0 0 20px rgba(200,168,78,0.4)',
+          pointerEvents: 'none',
+        }} />
+      )}
+
+      {/* Level text below node */}
+      {node.maxLevel > 0 && (
+        <div style={{
+          textAlign: 'center',
+          marginTop: 2,
+          fontSize: 11,
+          fontWeight: 600,
+          color: isMaxed ? '#e0c068' : hasPoints ? 'rgba(224,192,104,0.8)' : 'rgba(168,168,188,0.4)',
+          lineHeight: '14px',
+        }}>
+          {level}/{node.maxLevel}
+        </div>
+      )}
 
       {/* Tooltip */}
       {showTooltip && (
-        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 sm:w-72 pointer-events-none">
-          <div className="bg-deep-night border border-border-subtle rounded-lg p-3 shadow-xl text-sm">
-            <div className="flex items-center justify-between mb-1">
-              <span className="font-heading text-accent-gold font-semibold text-sm">
-                {node.name}
-              </span>
-              <span
-                className={`text-xs px-1.5 py-0.5 rounded ${TYPE_BG[node.type]} ${
-                  TYPE_COLORS[node.type].replace('border-', 'text-')
-                }`}
-              >
-                {TYPE_LABELS[node.type]}
-              </span>
-            </div>
-
-            {node.maxLevel > 0 && (
-              <div className="text-xs text-text-muted mb-2">
-                Level: {level}/{node.maxLevel}
-              </div>
-            )}
-
-            {node.description && (
-              <p className="text-text-secondary text-xs leading-relaxed mb-2">
-                {node.description}
-              </p>
-            )}
-
-            <div className="flex flex-wrap gap-2 text-xs text-text-muted">
-              {node.cooldown > 0 && (
-                <span>CD: {node.cooldown}s</span>
-              )}
-              {node.resourceCost > 0 && (
-                <span>Cost: {node.resourceCost}</span>
-              )}
-              {node.staminaCost > 0 && (
-                <span>Stamina: {node.staminaCost}</span>
-              )}
-              {node.hpCost > 0 && (
-                <span>HP: {node.hpCost}%</span>
-              )}
-            </div>
-
-            {node.needMasteryLevel > 0 && (
-              <div className="text-xs text-text-muted mt-1">
-                Requires: Mastery Level {node.needMasteryLevel}
-              </div>
-            )}
-
-            {prereqNames.length > 0 && (
-              <div className="text-xs text-text-muted mt-1">
-                Prerequisites: {prereqNames.join(', ')}
-              </div>
-            )}
-
-            {node.maxLevel > 0 && (
-              <div className="text-xs text-text-muted/60 mt-2 border-t border-border-subtle pt-1">
-                Left-click to add, Right-click to remove
-              </div>
-            )}
-          </div>
-        </div>
+        <NodeTooltip node={node} levels={levels} weaponNodes={weaponNodes} resourceName={resourceName} />
       )}
     </div>
   );
 }
 
-function WeaponTreeGrid({
-  weapon,
-  levels,
-  onAllocate,
-  onDeallocate,
-}: {
-  weapon: WeaponTree;
-  levels: NodeLevels;
-  onAllocate: (nodeId: number) => void;
-  onDeallocate: (nodeId: number) => void;
-}) {
-  // Build grid: 7 rows x 6 cols
-  const grid: (WeaponMasteryNode | null)[][] = Array.from({ length: 7 }, () =>
-    Array(GRID_COLS).fill(null),
-  );
+// --- Layout ---
+// Active skill families (I→II→III) are stacked vertically in the same column.
+// The base skill's gridIndex determines the column. Rows are assigned by needMasteryLevel tier.
+// Passives/standalone nodes fill empty cells in the grid.
 
+interface GridLayout {
+  positions: Map<number, { cx: number; cy: number; size: number }>;
+  width: number;
+  height: number;
+}
+
+function buildGridLayout(weapon: WeaponTree): GridLayout {
+  // Row mapping: each unique needMasteryLevel gets a row
+  const allLevels = [...new Set(weapon.nodes.map(n => n.needMasteryLevel))].sort((a, b) => a - b);
+  const levelToRow = new Map<number, number>();
+  allLevels.forEach((lv, i) => levelToRow.set(lv, i));
+  const totalRows = allLevels.length;
+
+  const positions = new Map<number, { cx: number; cy: number; size: number }>();
+
+  // Build active chains (I→II→III)
+  const chainMap = new Map<number, { base: WeaponMasteryNode; ii?: WeaponMasteryNode; iii?: WeaponMasteryNode }>();
+
+  const baseSkills = weapon.nodes
+    .filter(n => n.type === 'Active' && n.maxLevel >= 3)
+    .sort((a, b) => a.gridIndex - b.gridIndex);
+
+  for (const base of baseSkills) {
+    const entry: { base: WeaponMasteryNode; ii?: WeaponMasteryNode; iii?: WeaponMasteryNode } = { base };
+
+    const ii = weapon.nodes.find(n => n.prereq1?.id === base.id && !n.prereq2 && n.type === 'ActiveEnforce');
+    if (ii) { entry.ii = ii; }
+
+    const iii = ii && weapon.nodes.find(n => n.prereq1?.id === base.id && n.prereq2?.id === ii.id);
+    if (iii) { entry.iii = iii; }
+
+    chainMap.set(base.id, entry);
+  }
+
+  // Assign columns using within-tier position from MasteryIndex order.
+  // Tier 0 always has 6 nodes filling all 6 columns. For each tier, sort nodes
+  // by gridIndex — the sorted position IS the left-to-right column.
+  // Chain members (II/III) inherit their base skill's column.
+
+  const nodeCol = new Map<number, number>(); // nodeId -> column
+
+  // Group nodes by tier
+  const tiers = new Map<number, WeaponMasteryNode[]>();
   for (const node of weapon.nodes) {
-    const row = Math.floor(node.gridIndex / GRID_COLS);
-    const col = node.gridIndex % GRID_COLS;
-    if (row < 7 && col < GRID_COLS) {
-      grid[row][col] = node;
+    const tier = node.needMasteryLevel;
+    if (!tiers.has(tier)) tiers.set(tier, []);
+    tiers.get(tier)!.push(node);
+  }
+  for (const nodes of tiers.values()) {
+    nodes.sort((a, b) => a.gridIndex - b.gridIndex);
+  }
+
+  // Track which tiers each column has chain nodes in, so chains can share
+  // a column if their tier spans don't overlap.
+  const colChainTiers = new Map<number, Set<number>>(); // col -> set of tiers with chain nodes
+
+  // Collect each chain's full tier set (base + II + III tiers)
+  const chainTierSets = new Map<number, Set<number>>(); // baseId -> tiers used
+  for (const [baseId, chain] of chainMap) {
+    const tierSet = new Set<number>();
+    tierSet.add(chain.base.needMasteryLevel);
+    if (chain.ii) tierSet.add(chain.ii.needMasteryLevel);
+    if (chain.iii) tierSet.add(chain.iii.needMasteryLevel);
+    chainTierSets.set(baseId, tierSet);
+  }
+
+  // Process tier 0 first — within-tier position = column
+  const tier0 = tiers.get(allLevels[0]) || [];
+  for (let i = 0; i < tier0.length; i++) {
+    nodeCol.set(tier0[i].id, i);
+    if (chainMap.has(tier0[i].id)) {
+      const tierSet = chainTierSets.get(tier0[i].id)!;
+      colChainTiers.set(i, new Set(tierSet));
     }
   }
 
-  // Calculate total points spent
-  const totalSpent = weapon.nodes.reduce(
-    (sum, n) => sum + (levels[n.id] || 0),
-    0,
-  );
+  // Process remaining tiers in order.
+  for (const level of allLevels) {
+    if (level === allLevels[0]) continue;
+    const tierNodes = tiers.get(level) || [];
+
+    // Inherit columns for chain II/III nodes
+    const needsCol: WeaponMasteryNode[] = [];
+    for (const node of tierNodes) {
+      let inherited = false;
+      for (const [baseId, chain] of chainMap) {
+        if (chain.ii?.id === node.id || chain.iii?.id === node.id) {
+          const baseCol = nodeCol.get(baseId);
+          if (baseCol !== undefined) {
+            nodeCol.set(node.id, baseCol);
+            inherited = true;
+          }
+          break;
+        }
+      }
+      if (!inherited) needsCol.push(node);
+    }
+
+    // Separate new base skills from passives/other
+    const newBases: WeaponMasteryNode[] = [];
+    const others: WeaponMasteryNode[] = [];
+    for (const node of needsCol) {
+      if (chainMap.has(node.id)) newBases.push(node);
+      else others.push(node);
+    }
+
+    // Build set of columns occupied in THIS row
+    const rowOccupied = new Set<number>();
+    for (const node of tierNodes) {
+      const col = nodeCol.get(node.id);
+      if (col !== undefined) rowOccupied.add(col);
+    }
+
+    // Assign new base skills to columns where their tier span doesn't conflict
+    for (const base of newBases) {
+      const myTiers = chainTierSets.get(base.id)!;
+      let assigned = false;
+      for (let c = 0; c < GRID_COLS; c++) {
+        if (rowOccupied.has(c)) continue;
+        const existing = colChainTiers.get(c);
+        // Check if any of this chain's tiers conflict with tiers already in this column
+        let conflict = false;
+        if (existing) {
+          for (const t of myTiers) {
+            if (existing.has(t)) { conflict = true; break; }
+          }
+        }
+        if (!conflict) {
+          nodeCol.set(base.id, c);
+          rowOccupied.add(c);
+          if (!colChainTiers.has(c)) colChainTiers.set(c, new Set());
+          for (const t of myTiers) colChainTiers.get(c)!.add(t);
+          assigned = true;
+          break;
+        }
+      }
+      // Fallback: just use first empty column in this row
+      if (!assigned) {
+        for (let c = 0; c < GRID_COLS; c++) {
+          if (!rowOccupied.has(c)) {
+            nodeCol.set(base.id, c);
+            rowOccupied.add(c);
+            break;
+          }
+        }
+      }
+    }
+
+    // Assign passives/other nodes to remaining empty cells
+    const emptyCols: number[] = [];
+    for (let c = 0; c < GRID_COLS; c++) {
+      if (!rowOccupied.has(c)) emptyCols.push(c);
+    }
+    for (let i = 0; i < others.length; i++) {
+      const col = i < emptyCols.length ? emptyCols[i] : i;
+      nodeCol.set(others[i].id, col);
+      rowOccupied.add(col);
+    }
+  }
+
+  // Now place all nodes using their assigned columns
+  for (const node of weapon.nodes) {
+    const col = nodeCol.get(node.id) ?? 0;
+    const row = levelToRow.get(node.needMasteryLevel) ?? 0;
+    positions.set(node.id, {
+      cx: col * COL_SPACING + COL_SPACING / 2,
+      cy: row * ROW_SPACING + ROW_SPACING / 2,
+      size: (node.type === 'Active' && node.maxLevel >= 3) ? NODE_SIZE : HEX_SIZE,
+    });
+  }
+
+  return {
+    positions,
+    width: GRID_COLS * COL_SPACING,
+    height: totalRows * ROW_SPACING,
+  };
+}
+
+// --- Connection Lines SVG ---
+// Draws lines for all prereq1/prereq2 relationships.
+function ConnectionLines({ layout, levels, weapon }: {
+  layout: GridLayout; levels: NodeLevels; weapon: WeaponTree;
+}) {
+  const lineSet = new Set<string>();
+  const lines: { fromId: number; toId: number }[] = [];
+
+  for (const node of weapon.nodes) {
+    // Only draw the direct chain link:
+    // - If node has prereq2, draw from prereq2 (II→III link)
+    // - If node has only prereq1 (no prereq2), draw from prereq1 (I→II or synergy→child)
+    const directPrereq = node.prereq2 ?? node.prereq1;
+    if (!directPrereq) continue;
+    const key = `${directPrereq.id}-${node.id}`;
+    if (lineSet.has(key)) continue;
+    lineSet.add(key);
+    lines.push({ fromId: directPrereq.id, toId: node.id });
+  }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-heading text-lg text-accent-gold">
-          {weapon.displayName}
-        </h3>
-        <span className="text-sm text-text-muted">
-          Points: <span className="text-accent-gold-light font-semibold">{totalSpent}</span>
-        </span>
-      </div>
-
-      {/* Mastery level bar */}
-      <div className="mb-4">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs text-text-muted">Mastery Level</span>
-          <span className="text-xs text-accent-gold-light font-semibold">{totalSpent}</span>
-        </div>
-        <div className="h-1.5 bg-dark-surface rounded-full overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-accent-gold-dim to-accent-gold rounded-full transition-all duration-300"
-            style={{ width: `${Math.min((totalSpent / 35) * 100, 100)}%` }}
+    <>
+      {lines.map(({ fromId, toId }) => {
+        const from = layout.positions.get(fromId);
+        const to = layout.positions.get(toId);
+        if (!from || !to) return null;
+        const active = (levels[fromId] || 0) > 0;
+        return (
+          <line key={`${fromId}-${toId}`}
+            x1={from.cx} y1={from.cy + from.size / 2}
+            x2={to.cx} y2={to.cy - to.size / 2}
+            stroke={active ? 'rgba(224,192,104,0.35)' : 'rgba(100,100,120,0.18)'}
+            strokeWidth={1}
           />
-        </div>
-      </div>
+        );
+      })}
+    </>
+  );
+}
 
-      {/* Skill tree grid */}
-      <div className="grid grid-cols-6 gap-1.5 sm:gap-2">
-        {grid.map((row, ri) =>
-          row.map((node, ci) =>
-            node ? (
+// --- Weapon Tree Grid (chain-based) ---
+function WeaponTreeGrid({ weapon, levels, onAllocate, onDeallocate, resourceName }: {
+  weapon: WeaponTree; levels: NodeLevels;
+  onAllocate: (nodeId: number) => void; onDeallocate: (nodeId: number) => void; resourceName: string;
+}) {
+  const layout = useMemo(() => buildGridLayout(weapon), [weapon]);
+
+  return (
+    <div className="relative">
+      <div className="relative" style={{ width: layout.width, height: layout.height }}>
+        {/* SVG connection lines */}
+        <svg className="absolute inset-0 pointer-events-none" width={layout.width} height={layout.height} style={{ zIndex: 1 }}>
+          <ConnectionLines layout={layout} levels={levels} weapon={weapon} />
+        </svg>
+
+        {/* Nodes */}
+        {weapon.nodes.map(node => {
+          const pos = layout.positions.get(node.id);
+          if (!pos) return null;
+          return (
+            <div key={node.id} className="absolute" style={{
+              left: pos.cx - pos.size / 2,
+              top: pos.cy - pos.size / 2,
+              zIndex: 2,
+            }}>
               <TalentNode
-                key={node.id}
                 node={node}
                 level={levels[node.id] || 0}
                 unlocked={isNodeUnlocked(node, levels, weapon.nodes)}
@@ -350,126 +681,223 @@ function WeaponTreeGrid({
                 onDeallocate={() => onDeallocate(node.id)}
                 weaponNodes={weapon.nodes}
                 levels={levels}
+                resourceName={resourceName}
               />
-            ) : (
-              <div key={`empty-${ri}-${ci}`} className="aspect-square" />
-            ),
-          ),
-        )}
-      </div>
-
-      {/* Legend */}
-      <div className="flex flex-wrap gap-3 mt-3 text-[10px] sm:text-xs text-text-muted">
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-blue-400" /> Active
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-purple-400" /> Enhanced
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-green-400" /> Passive
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-yellow-400" /> Synergy
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-accent-gold" /> Special
-        </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function ClassMasterySection({
-  classData,
-  selectedMastery,
-  onToggle,
-}: {
-  classData: ClassTalentData;
-  selectedMastery: Set<number>;
-  onToggle: (id: number) => void;
+// --- Right Info Panel ---
+function InfoPanel({ weapon, levels, classData }: {
+  weapon: WeaponTree; levels: NodeLevels; classData: ClassTalentData;
+}) {
+  const totalSpent = weapon.nodes.reduce((sum, n) => sum + (levels[n.id] || 0), 0);
+  const maxPossible = weapon.nodes.reduce((sum, n) => sum + n.maxLevel, 0);
+  const specialNode = weapon.nodes.find(n => n.type === 'SpecialAction');
+  const equippedActives = weapon.nodes
+    .filter(n => n.type === 'Active' && (levels[n.id] || 0) > 0)
+    .slice(0, 4);
+
+  const wepIcon = WEAPON_ICON[weapon.weaponKey];
+  const slug = CLASS_SLUG[classData.classKey] || classData.classKey.toLowerCase();
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Weapon name + silhouette bg */}
+      <div className="relative overflow-hidden rounded-lg p-5" style={{
+        background: 'linear-gradient(135deg, rgba(13,13,24,0.9) 0%, rgba(10,10,18,0.95) 100%)',
+        border: '1px solid rgba(200,168,78,0.15)',
+        minHeight: 140,
+      }}>
+        {/* Background weapon icon (large, faded) */}
+        {wepIcon && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`/images/game-icons/weapons/${wepIcon}.png`}
+            alt=""
+            className="absolute right-[-20px] top-[-10px] opacity-[0.06]"
+            style={{ width: 180, height: 180, filter: 'brightness(2)', pointerEvents: 'none' }}
+          />
+        )}
+        <div className="relative z-10">
+          <div className="font-heading text-2xl text-accent-gold mb-1">{weapon.displayName}</div>
+          <div className="text-[12px] text-text-muted mb-4">{classData.displayName}</div>
+
+          {/* Mastery Level progress */}
+          <div className="text-[11px] text-text-muted mb-1.5">
+            Mastery Level <span className="text-accent-gold font-bold">{totalSpent}</span>
+            <span className="text-text-muted">/{maxPossible}</span>
+          </div>
+          <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(42,42,74,0.5)' }}>
+            <div
+              className="h-full rounded-full transition-all duration-300"
+              style={{
+                width: maxPossible > 0 ? `${(totalSpent / maxPossible) * 100}%` : '0%',
+                background: 'linear-gradient(90deg, #8a6e2f, #c8a84e, #e0c068)',
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Special Move */}
+      {specialNode && (
+        <div className="rounded-lg p-4" style={{
+          background: 'rgba(13,13,24,0.7)',
+          border: '1px solid rgba(200,168,78,0.12)',
+        }}>
+          <div className="text-[11px] text-text-muted uppercase tracking-wider mb-3 font-heading">Special Move</div>
+          <div className="flex items-center gap-3">
+            <div style={{
+              width: 52,
+              height: 52,
+              clipPath: HEXAGON_CLIP,
+              background: 'rgba(200,168,78,0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <div style={{
+                width: 48,
+                height: 48,
+                clipPath: HEXAGON_CLIP,
+                background: 'rgba(14,14,22,0.9)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                {specialNode.icon && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={specialNode.icon} alt="" style={{ width: '60%', height: '60%', objectFit: 'contain', filter: 'brightness(1.1)' }} />
+                )}
+              </div>
+            </div>
+            <div>
+              <div className="text-[13px] text-accent-gold font-heading">{specialNode.name}</div>
+              {specialNode.cooldown > 0 && (
+                <div className="text-[10px] text-text-muted mt-0.5">Cooldown: {specialNode.cooldown}s</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Equipped Skills */}
+      <div className="rounded-lg p-4" style={{
+        background: 'rgba(13,13,24,0.7)',
+        border: '1px solid rgba(200,168,78,0.12)',
+      }}>
+        <div className="text-[11px] text-text-muted uppercase tracking-wider mb-3 font-heading">Equipped Skills</div>
+        <div className="grid grid-cols-4 gap-2">
+          {Array.from({ length: 4 }).map((_, i) => {
+            const skill = equippedActives[i];
+            return (
+              <div key={i} style={{
+                width: 56,
+                height: 56,
+                borderRadius: '50%',
+                border: skill ? '2px solid rgba(224,192,104,0.5)' : '2px solid rgba(42,42,74,0.3)',
+                background: skill ? 'rgba(200,168,78,0.08)' : 'rgba(14,14,22,0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                {skill?.icon ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={skill.icon} alt="" style={{ width: '60%', height: '60%', objectFit: 'contain', filter: 'brightness(1.2)' }} />
+                ) : (
+                  <span style={{ fontSize: 18, color: 'rgba(42,42,74,0.4)' }}>+</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {equippedActives.length > 0 && (
+          <div className="mt-2 space-y-0.5">
+            {equippedActives.map(s => (
+              <div key={s.id} className="text-[10px] text-text-muted truncate">{s.name}</div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Class portrait */}
+      <div className="rounded-lg overflow-hidden" style={{
+        border: '1px solid rgba(200,168,78,0.12)',
+        background: 'rgba(13,13,24,0.7)',
+      }}>
+        <div className="relative" style={{ height: 120 }}>
+          <Image
+            src={`/images/game-icons/classes/${slug}-portrait.png`}
+            alt={classData.displayName}
+            fill
+            className="object-cover opacity-30"
+          />
+          <div className="absolute inset-0 flex items-end p-3" style={{
+            background: 'linear-gradient(transparent, rgba(10,10,18,0.9))',
+          }}>
+            <span className="font-heading text-lg text-accent-gold">{classData.displayName}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Class Mastery Sidebar ---
+function ClassMasterySection({ classData, selectedMastery, onToggle }: {
+  classData: ClassTalentData; selectedMastery: Set<number>; onToggle: (id: number) => void;
 }) {
   const tiers = [
-    { level: 10, label: 'Level 10', isShared: false },
-    { level: 15, label: 'Level 15', isShared: false },
-    { level: 20, label: 'Level 20', isShared: false },
-    { level: 25, label: 'Level 25', isShared: true },
-    { level: 30, label: 'Level 30', isShared: true },
-    { level: 40, label: 'Level 40', isShared: true },
+    { level: 10, label: 'Lv 10', isShared: false },
+    { level: 15, label: 'Lv 15', isShared: false },
+    { level: 20, label: 'Lv 20', isShared: false },
+    { level: 25, label: 'Lv 25', isShared: true },
+    { level: 30, label: 'Lv 30', isShared: true },
+    { level: 40, label: 'Lv 40', isShared: true },
   ];
 
   return (
     <div>
-      <h3 className="font-heading text-lg text-accent-gold mb-4">
-        Class Mastery
-      </h3>
-
+      <h3 className="font-heading text-sm text-accent-gold mb-3">Class Mastery</h3>
       <div className="space-y-4">
         {tiers.map(({ level, label, isShared }) => {
-          const nodes = classData.classMastery.filter(
-            (n) => n.unlockLevel === level && n.isShared === isShared,
-          );
+          const nodes = classData.classMastery.filter(n => n.unlockLevel === level && n.isShared === isShared);
           if (nodes.length === 0) return null;
-
           return (
             <div key={`${level}-${isShared}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-medium text-text-muted uppercase tracking-wider">
-                  {isShared ? `Shared - ${label}` : label}
+              <div className="flex items-center gap-2 mb-1.5">
+                <div className="h-px flex-1 bg-border-subtle/40" />
+                <span className="text-[9px] font-heading uppercase tracking-widest text-text-muted whitespace-nowrap">
+                  {isShared ? `Shared ${label}` : label}
                 </span>
-                <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded ${
-                    isShared
-                      ? 'bg-purple-500/10 text-purple-400'
-                      : 'bg-accent-gold/10 text-accent-gold'
-                  }`}
-                >
-                  {nodes[0].type}
-                </span>
+                <div className="h-px flex-1 bg-border-subtle/40" />
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {nodes.map((node) => {
+              <div className="space-y-1.5">
+                {nodes.map(node => {
                   const selected = selectedMastery.has(node.id);
                   return (
-                    <button
-                      key={node.id}
-                      onClick={() => onToggle(node.id)}
-                      className={`
-                        p-2.5 rounded-lg border-2 text-left transition-all duration-200
-                        ${
-                          selected
-                            ? 'border-accent-gold bg-accent-gold/10 shadow-md shadow-accent-gold/10'
-                            : 'border-border-subtle bg-card-bg/60 hover:border-border-subtle hover:brightness-110'
-                        }
-                      `}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span
-                          className={`text-xs sm:text-sm font-medium ${
-                            selected ? 'text-accent-gold' : 'text-text-primary'
-                          }`}
-                        >
-                          {node.name}
-                        </span>
-                        <span
-                          className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${
-                            selected
-                              ? 'border-accent-gold bg-accent-gold'
-                              : 'border-text-muted/40'
-                          }`}
-                        >
-                          {selected && (
-                            <svg className="w-2 h-2 text-void-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </span>
+                    <button key={node.id} onClick={() => onToggle(node.id)}
+                      className="relative p-2 rounded border text-left transition-all duration-150 w-full"
+                      style={{
+                        borderColor: selected ? '#c8a84e' : 'rgba(42,42,74,0.6)',
+                        background: selected ? 'rgba(200,168,78,0.08)' : 'rgba(22,22,42,0.4)',
+                      }}>
+                      <div className="flex items-start gap-2">
+                        <div className={`mt-0.5 w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${selected ? 'border-accent-gold bg-accent-gold' : 'border-border-subtle'}`}>
+                          {selected && <svg className="w-2 h-2 text-void-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className={`text-[11px] font-medium ${selected ? 'text-accent-gold' : 'text-text-primary'}`}>{node.name}</span>
+                          <span className={`text-[9px] ml-1.5 ${node.type === 'Active' ? 'text-blue-400' : 'text-green-400'}`}>{node.type}</span>
+                          {node.description && <p className="text-[9px] text-text-muted leading-relaxed mt-0.5 line-clamp-2">{node.description}</p>}
+                        </div>
                       </div>
-                      {node.description && (
-                        <p className="text-[10px] sm:text-xs text-text-muted leading-relaxed line-clamp-3">
-                          {node.description}
-                        </p>
-                      )}
                     </button>
                   );
                 })}
@@ -482,298 +910,233 @@ function ClassMasterySection({
   );
 }
 
-// --- Main Component ---
-export default function TalentCalculator() {
-  const [selectedClass, setSelectedClass] = useState(0);
-  const [selectedWeapon, setSelectedWeapon] = useState(0);
-  const [nodeLevels, setNodeLevels] = useState<NodeLevels>({});
-  const [selectedMastery, setSelectedMastery] = useState<Set<number>>(
-    new Set(),
-  );
-
-  const classData = TALENT_DATA[selectedClass];
-  const weaponData = classData.weapons[selectedWeapon];
-  const resourceName = CLASS_RESOURCES[classData.classKey];
-
-  const handleAllocate = useCallback(
-    (nodeId: number) => {
-      const node = weaponData.nodes.find((n) => n.id === nodeId);
-      if (!node) return;
-      if (!canAllocate(node, nodeLevels, weaponData.nodes)) return;
-
-      setNodeLevels((prev) => ({
-        ...prev,
-        [nodeId]: (prev[nodeId] || 0) + 1,
-      }));
-    },
-    [weaponData, nodeLevels],
-  );
-
-  const handleDeallocate = useCallback(
-    (nodeId: number) => {
-      const current = nodeLevels[nodeId] || 0;
-      if (current <= 0) return;
-
-      // Check if removing this would break any allocated dependent nodes
-      const newLevels = { ...nodeLevels, [nodeId]: current - 1 };
-      const wouldBreak = weaponData.nodes.some((n) => {
-        const nLevel = newLevels[n.id] || 0;
-        if (nLevel <= 0) return false;
-        // Check if this node's prereqs are still met
-        if (n.prereq1 && n.prereq1.id === nodeId) {
-          if (current - 1 < n.prereq1.level) return true;
-        }
-        if (n.prereq2 && n.prereq2.id === nodeId) {
-          if (current - 1 < n.prereq2.level) return true;
-        }
-        return false;
-      });
-
-      if (wouldBreak) return;
-
-      setNodeLevels((prev) => ({
-        ...prev,
-        [nodeId]: current - 1,
-      }));
-    },
-    [weaponData, nodeLevels],
-  );
-
-  const handleToggleMastery = useCallback((id: number) => {
-    setSelectedMastery((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
-  const handleReset = useCallback(() => {
-    setNodeLevels({});
-    setSelectedMastery(new Set());
-  }, []);
-
-  const handleResetWeapon = useCallback(() => {
-    const weaponIds = new Set(weaponData.nodes.map((n) => n.id));
-    setNodeLevels((prev) => {
-      const next: NodeLevels = {};
-      for (const [k, v] of Object.entries(prev)) {
-        if (!weaponIds.has(Number(k))) next[Number(k)] = v;
-      }
-      return next;
-    });
-  }, [weaponData]);
-
-  // Summary stats
-  const totalWeaponPoints = useMemo(() => {
-    return classData.weapons.reduce(
-      (sum, wep) =>
-        sum + wep.nodes.reduce((s, n) => s + (nodeLevels[n.id] || 0), 0),
-      0,
-    );
-  }, [classData, nodeLevels]);
-
-  const currentWeaponPoints = useMemo(() => {
-    return weaponData.nodes.reduce(
-      (sum, n) => sum + (nodeLevels[n.id] || 0),
-      0,
-    );
-  }, [weaponData, nodeLevels]);
+// --- Share Button ---
+function ShareButton({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = useCallback(async () => {
+    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* noop */ }
+  }, [url]);
 
   return (
-    <div className="space-y-6">
+    <button onClick={handleCopy}
+      className={`flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium border transition-all ${copied ? 'border-green-500/50 bg-green-500/10 text-green-400' : 'border-border-subtle bg-card-bg/60 text-text-muted hover:text-text-primary hover:border-accent-gold-dim'}`}>
+      {copied ? 'Copied!' : 'Share Build'}
+    </button>
+  );
+}
+
+// --- Main ---
+export default function TalentCalculator() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const initialState = useMemo(() => {
+    const search = searchParams.toString();
+    return search ? decodeState(search) : null;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [selectedClass, setSelectedClass] = useState(Math.min(initialState?.classIdx ?? 0, TALENT_DATA.length - 1));
+  const [selectedWeapon, setSelectedWeapon] = useState(initialState?.weaponIdx ?? 0);
+  const [nodeLevels, setNodeLevels] = useState<NodeLevels>(initialState?.levels ?? {});
+  const [selectedMastery, setSelectedMastery] = useState<Set<number>>(initialState?.masterySet ?? new Set());
+
+  const classData = TALENT_DATA[selectedClass];
+  const weaponIdx = Math.min(selectedWeapon, classData.weapons.length - 1);
+  const weaponData = classData.weapons[weaponIdx];
+  const resourceName = CLASS_RESOURCES[classData.classKey] || 'Resource';
+
+  useEffect(() => {
+    router.replace(`?${encodeState(selectedClass, weaponIdx, nodeLevels, selectedMastery)}`, { scroll: false });
+  }, [selectedClass, weaponIdx, nodeLevels, selectedMastery, router]);
+
+  const shareUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/talent-calculator?${encodeState(selectedClass, weaponIdx, nodeLevels, selectedMastery)}`
+    : '';
+
+  const handleAllocate = useCallback((nodeId: number) => {
+    const node = weaponData.nodes.find(n => n.id === nodeId);
+    if (!node || !canAllocate(node, nodeLevels, weaponData.nodes)) return;
+    setNodeLevels(prev => ({ ...prev, [nodeId]: (prev[nodeId] || 0) + 1 }));
+  }, [weaponData, nodeLevels]);
+
+  const handleDeallocate = useCallback((nodeId: number) => {
+    const current = nodeLevels[nodeId] || 0;
+    if (current <= 0) return;
+    const newLevels = { ...nodeLevels, [nodeId]: current - 1 };
+    const newTotalSpent = weaponData.nodes.reduce((sum, n) => sum + (newLevels[n.id] || 0), 0);
+
+    const wouldBreak = weaponData.nodes.some(n => {
+      const nLevel = newLevels[n.id] || 0;
+      if (nLevel <= 0) return false;
+      // Check direct prereq links
+      if (n.prereq1?.id === nodeId && current - 1 < n.prereq1.level) return true;
+      if (n.prereq2?.id === nodeId && current - 1 < n.prereq2.level) return true;
+      // Check mastery-tier gate: would removing this point drop total below a still-allocated node's requirement?
+      if (n.needMasteryLevel > 0 && newTotalSpent < n.needMasteryLevel) return true;
+      return false;
+    });
+    if (wouldBreak) return;
+    setNodeLevels(prev => ({ ...prev, [nodeId]: current - 1 }));
+  }, [weaponData, nodeLevels]);
+
+  const handleToggleMastery = useCallback((id: number) => {
+    setSelectedMastery(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  }, []);
+
+  const handleReset = useCallback(() => { setNodeLevels({}); setSelectedMastery(new Set()); }, []);
+  const handleResetWeapon = useCallback(() => {
+    const ids = new Set(weaponData.nodes.map(n => n.id));
+    setNodeLevels(prev => { const next: NodeLevels = {}; for (const [k, v] of Object.entries(prev)) if (!ids.has(Number(k))) next[Number(k)] = v; return next; });
+  }, [weaponData]);
+
+  const handleClassChange = useCallback((idx: number) => {
+    setSelectedClass(idx); setSelectedWeapon(0); setNodeLevels({}); setSelectedMastery(new Set());
+  }, []);
+
+  const totalWeaponPoints = useMemo(() => classData.weapons.reduce((sum, wep) => sum + wep.nodes.reduce((s, n) => s + (nodeLevels[n.id] || 0), 0), 0), [classData, nodeLevels]);
+
+  return (
+    <div className="space-y-4">
+
       {/* Class Selector */}
-      <div className="flex flex-wrap gap-2">
-        {TALENT_DATA.map((cls, i) => (
-          <button
-            key={cls.classKey}
-            onClick={() => {
-              setSelectedClass(i);
-              setSelectedWeapon(0);
-            }}
-            className={`
-              px-4 py-2.5 rounded-lg border-2 font-heading text-sm sm:text-base transition-all duration-200
-              ${
-                i === selectedClass
-                  ? 'border-accent-gold bg-accent-gold/15 text-accent-gold shadow-md shadow-accent-gold/10'
-                  : 'border-border-subtle bg-card-bg text-text-muted hover:border-accent-gold-dim hover:text-text-primary'
-              }
-            `}
-          >
-            <span className="mr-1.5">{CLASS_ICONS[cls.classKey]}</span>
-            {cls.displayName}
-          </button>
-        ))}
+      <div className="flex flex-wrap gap-1.5">
+        {TALENT_DATA.map((cls, i) => {
+          const slug = CLASS_SLUG[cls.classKey] || cls.classKey.toLowerCase();
+          const isActive = i === selectedClass;
+          return (
+            <button key={cls.classKey} onClick={() => handleClassChange(i)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded border font-heading text-[13px] transition-all ${isActive ? 'border-accent-gold bg-accent-gold/10 text-accent-gold' : 'border-border-subtle/60 bg-card-bg/40 text-text-muted hover:border-accent-gold-dim hover:text-text-primary'}`}>
+              <div className={`w-6 h-6 rounded overflow-hidden shrink-0 border ${isActive ? 'border-accent-gold/40' : 'border-border-subtle/40'}`}>
+                <Image src={`/images/game-icons/classes/${slug}-portrait.png`} alt={cls.displayName} width={24} height={24} className="w-full h-full object-cover" />
+              </div>
+              {cls.displayName}
+            </button>
+          );
+        })}
       </div>
 
       {/* Weapon Tabs + Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1.5">
-          {classData.weapons.map((wep, i) => (
-            <button
-              key={wep.weaponKey}
-              onClick={() => setSelectedWeapon(i)}
-              className={`
-                px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200
-                ${
-                  i === selectedWeapon
-                    ? 'bg-accent-gold/20 text-accent-gold border border-accent-gold/40'
-                    : 'bg-card-bg text-text-muted border border-border-subtle hover:text-text-primary'
-                }
-              `}
-            >
-              {wep.displayName}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            onClick={handleResetWeapon}
-            className="px-3 py-1.5 rounded-md text-xs font-medium bg-card-bg text-text-muted border border-border-subtle hover:border-accent-red/40 hover:text-accent-red transition-colors"
-          >
-            Reset Weapon
-          </button>
-          <button
-            onClick={handleReset}
-            className="px-3 py-1.5 rounded-md text-xs font-medium bg-card-bg text-text-muted border border-border-subtle hover:border-accent-red/40 hover:text-accent-red transition-colors"
-          >
-            Reset All
-          </button>
-        </div>
-      </div>
-
-      {/* Summary Bar */}
-      <div className="flex flex-wrap gap-4 p-3 bg-card-bg border border-border-subtle rounded-lg text-sm">
-        <div>
-          <span className="text-text-muted">Class:</span>{' '}
-          <span className="text-text-primary font-medium">
-            {classData.displayName}
-          </span>
-        </div>
-        <div>
-          <span className="text-text-muted">Resource:</span>{' '}
-          <span className="text-accent-gold-light font-medium">
-            {resourceName}
-          </span>
-        </div>
-        <div>
-          <span className="text-text-muted">Current Weapon:</span>{' '}
-          <span className="text-text-primary font-medium">
-            {currentWeaponPoints} pts
-          </span>
-        </div>
-        <div>
-          <span className="text-text-muted">Total Weapon:</span>{' '}
-          <span className="text-text-primary font-medium">
-            {totalWeaponPoints} pts
-          </span>
-        </div>
-        <div>
-          <span className="text-text-muted">Class Mastery:</span>{' '}
-          <span className="text-text-primary font-medium">
-            {selectedMastery.size} selected
-          </span>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Weapon Tree - takes 2 cols */}
-        <div className="lg:col-span-2 bg-card-bg border border-border-subtle rounded-lg p-4 sm:p-6">
-          <WeaponTreeGrid
-            weapon={weaponData}
-            levels={nodeLevels}
-            onAllocate={handleAllocate}
-            onDeallocate={handleDeallocate}
-          />
-        </div>
-
-        {/* Class Mastery Sidebar */}
-        <div className="bg-card-bg border border-border-subtle rounded-lg p-4 sm:p-6 max-h-[800px] overflow-y-auto">
-          <ClassMasterySection
-            classData={classData}
-            selectedMastery={selectedMastery}
-            onToggle={handleToggleMastery}
-          />
-        </div>
-      </div>
-
-      {/* Build Summary - Allocated Skills */}
-      <div className="bg-card-bg border border-border-subtle rounded-lg p-4 sm:p-6">
-        <h3 className="font-heading text-lg text-accent-gold mb-4">
-          Build Summary
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {classData.weapons.map((wep) => {
-            const allocatedNodes = wep.nodes.filter(
-              (n) => (nodeLevels[n.id] || 0) > 0,
-            );
-            const wepTotal = wep.nodes.reduce(
-              (s, n) => s + (nodeLevels[n.id] || 0),
-              0,
-            );
-
+      <div className="flex items-end justify-between gap-2 border-b border-border-subtle/60">
+        <div className="flex">
+          {classData.weapons.map((wep, i) => {
+            const isActive = i === weaponIdx;
+            const wepIcon = WEAPON_ICON[wep.weaponKey];
+            const wepPts = wep.nodes.reduce((s, n) => s + (nodeLevels[n.id] || 0), 0);
             return (
-              <div key={wep.weaponKey}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-heading text-text-primary">
-                    {wep.displayName}
-                  </span>
-                  <span className="text-xs text-accent-gold-light">
-                    {wepTotal} pts
-                  </span>
-                </div>
-                {allocatedNodes.length === 0 ? (
-                  <p className="text-xs text-text-muted">No points allocated</p>
-                ) : (
-                  <div className="space-y-1">
-                    {allocatedNodes.map((n) => (
-                      <div
-                        key={n.id}
-                        className="flex items-center justify-between text-xs"
-                      >
-                        <span className="text-text-secondary">{n.name}</span>
-                        <span className="text-text-muted">
-                          {nodeLevels[n.id]}/{n.maxLevel}
-                        </span>
-                      </div>
-                    ))}
+              <button key={wep.weaponKey} onClick={() => setSelectedWeapon(i)}
+                className={`relative flex items-center gap-2 px-4 py-2 text-sm transition-all ${isActive ? 'text-accent-gold' : 'text-text-muted hover:text-text-primary'}`}>
+                {wepIcon && (
+                  <div className="w-5 h-5 shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`/images/game-icons/weapons/${wepIcon}.png`} alt="" className="w-full h-full object-contain"
+                      style={{ filter: isActive ? 'brightness(1.2) sepia(0.3) saturate(2) hue-rotate(10deg)' : 'brightness(0.5)' }} />
                   </div>
                 )}
-              </div>
+                <span className="font-medium">{wep.displayName}</span>
+                {wepPts > 0 && (
+                  <span className={`text-[10px] px-1 py-0.5 rounded ${isActive ? 'bg-accent-gold/15 text-accent-gold' : 'bg-dark-surface text-text-muted'}`}>{wepPts}</span>
+                )}
+                {isActive && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-gold rounded-t-full" />}
+              </button>
             );
           })}
         </div>
+        <div className="flex gap-1.5 pb-1.5">
+          {/* Mastery point counter */}
+          <div className="flex items-center gap-1 px-2.5 py-1 text-[11px]">
+            <span className="text-text-muted">MASTERY POINT</span>
+            <span className="text-accent-gold font-bold">{totalWeaponPoints}</span>
+          </div>
+          <ShareButton url={shareUrl} />
+          <button onClick={handleResetWeapon} className="px-2.5 py-1 rounded text-[11px] border border-border-subtle bg-card-bg/60 text-text-muted hover:border-red-500/40 hover:text-red-400 transition-colors">Reset Tree</button>
+          <button onClick={handleReset} className="px-2.5 py-1 rounded text-[11px] border border-border-subtle bg-card-bg/60 text-red-400/60 hover:border-red-500/50 hover:text-red-400 transition-colors">Reset All</button>
+        </div>
+      </div>
 
-        {/* Selected class mastery */}
-        {selectedMastery.size > 0 && (
-          <div className="mt-4 pt-4 border-t border-border-subtle">
-            <span className="text-sm font-heading text-text-primary mb-2 block">
-              Class Mastery
-            </span>
-            <div className="space-y-1">
-              {classData.classMastery
-                .filter((n) => selectedMastery.has(n.id))
-                .map((n) => (
-                  <div key={n.id} className="flex items-center gap-2 text-xs">
-                    <span
-                      className={`px-1.5 py-0.5 rounded ${
-                        n.type === 'Active'
-                          ? 'bg-blue-500/10 text-blue-400'
-                          : 'bg-green-500/10 text-green-400'
-                      }`}
-                    >
-                      {n.type}
-                    </span>
-                    <span className="text-text-secondary">{n.name}</span>
-                    <span className="text-text-muted">Lv{n.unlockLevel}</span>
+      {/* Main layout: Tree (left) + Info Panel (right) */}
+      <div className="flex gap-5">
+        {/* Tree area */}
+        <div className="flex-1 rounded-lg border border-border-subtle overflow-y-auto" style={{
+          background: 'linear-gradient(135deg, #0d0d18 0%, #0a0a12 50%, #0d0d1a 100%)',
+          maxHeight: '85vh',
+        }}>
+          <div className="p-4 sm:p-6">
+            <WeaponTreeGrid
+              weapon={weaponData}
+              levels={nodeLevels}
+              onAllocate={handleAllocate}
+              onDeallocate={handleDeallocate}
+              resourceName={resourceName}
+            />
+          </div>
+        </div>
+
+        {/* Right info panel */}
+        <div className="w-[280px] shrink-0 hidden lg:block">
+          <InfoPanel weapon={weaponData} levels={nodeLevels} classData={classData} />
+        </div>
+      </div>
+
+      {/* Class Mastery */}
+      <div className="rounded-lg border border-border-subtle p-5 mt-2" style={{
+        background: 'linear-gradient(180deg, #0d0d18 0%, #0a0a12 100%)',
+      }}>
+        <ClassMasterySection classData={classData} selectedMastery={selectedMastery} onToggle={handleToggleMastery} />
+      </div>
+
+      {/* Build Summary */}
+      {(Object.values(nodeLevels).some(v => v > 0) || selectedMastery.size > 0) && (
+        <div className="rounded-lg border border-border-subtle p-4" style={{ background: 'rgba(13,13,24,0.6)' }}>
+          <h3 className="font-heading text-sm text-accent-gold mb-3">Build Summary</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {classData.weapons.map(wep => {
+              const allocated = wep.nodes.filter(n => (nodeLevels[n.id] || 0) > 0);
+              if (allocated.length === 0) return null;
+              const wepTotal = wep.nodes.reduce((s, n) => s + (nodeLevels[n.id] || 0), 0);
+              return (
+                <div key={wep.weaponKey}>
+                  <div className="flex items-center gap-2 pb-1 mb-1.5 border-b border-border-subtle/40">
+                    {WEAPON_ICON[wep.weaponKey] && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={`/images/game-icons/weapons/${WEAPON_ICON[wep.weaponKey]}.png`} alt="" className="w-4 h-4 object-contain" style={{ filter: 'brightness(0.8)' }} />
+                    )}
+                    <span className="text-xs font-heading text-text-primary">{wep.displayName}</span>
+                    <span className="ml-auto text-[10px] text-accent-gold">{wepTotal}pts</span>
+                  </div>
+                  {allocated.map(n => {
+                    const lvl = nodeLevels[n.id];
+                    return (
+                      <div key={n.id} className="flex items-center gap-1.5 text-[10px] py-0.5">
+                        {n.icon && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={n.icon} alt="" className="w-3.5 h-3.5 object-contain" style={{ filter: 'brightness(0.9)' }} />
+                        )}
+                        <span className="text-text-muted truncate flex-1">{n.name}</span>
+                        <span className={`shrink-0 font-medium ${lvl >= n.maxLevel ? 'text-accent-gold' : 'text-text-muted'}`}>{lvl}/{n.maxLevel}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+            {selectedMastery.size > 0 && (
+              <div>
+                <div className="flex items-center gap-2 pb-1 mb-1.5 border-b border-border-subtle/40">
+                  <span className="text-xs font-heading text-text-primary">Class Mastery</span>
+                  <span className="ml-auto text-[10px] text-accent-gold">{selectedMastery.size}</span>
+                </div>
+                {classData.classMastery.filter(n => selectedMastery.has(n.id)).map(n => (
+                  <div key={n.id} className="flex items-center gap-1.5 text-[10px] py-0.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${n.type === 'Active' ? 'bg-blue-400' : 'bg-green-400'}`} />
+                    <span className="text-text-muted truncate">{n.name}</span>
+                    <span className="ml-auto text-text-muted">Lv.{n.unlockLevel}</span>
                   </div>
                 ))}
-            </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
