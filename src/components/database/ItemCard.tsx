@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import type { ItemListEntry } from '@/data/items';
+import { getItemIcon } from '@/data/item-icons';
+import { getItemSlug } from '@/data/item-slugs';
 import GradeBadge, { gradeTextColor } from './GradeBadge';
 
 const sourceColors: Record<string, string> = {
@@ -11,11 +13,21 @@ const sourceColors: Record<string, string> = {
 };
 
 export default function ItemCard({ item }: { item: ItemListEntry }) {
+  const icon = getItemIcon(item.id);
+  const slug = getItemSlug(item.id) ?? item.id;
   return (
     <Link
-      href={'/database/' + item.id}
+      href={'/database/' + slug}
       className="group flex items-center px-4 py-2.5 border-b border-border-subtle hover:bg-deep-night transition-colors"
     >
+      <span className="shrink-0 w-9 h-9 mr-3 flex items-center justify-center rounded bg-deep-night border border-border-subtle overflow-hidden">
+        {icon ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={icon} alt="" className="w-full h-full object-contain" loading="lazy" />
+        ) : (
+          <span className="text-text-muted text-[10px]"> </span>
+        )}
+      </span>
       <span className={'flex-1 min-w-0 text-sm font-medium truncate pr-4 group-hover:text-accent-gold transition-colors ' + gradeTextColor(item.grade)}>
         {item.name}
       </span>
@@ -31,7 +43,7 @@ export default function ItemCard({ item }: { item: ItemListEntry }) {
       <span className="text-xs text-text-muted w-10 shrink-0 text-center">T{item.tier}</span>
 
       <span className="text-xs text-text-muted w-20 shrink-0 text-right hidden md:block">
-        {item.gearScoreMin > 0 ? 'GS ' + item.gearScoreMin + '–' + item.gearScoreMax : ''}
+        {item.gearScoreMin > 0 ? 'GS ' + item.gearScoreMin + '-' + item.gearScoreMax : ''}
       </span>
 
       <span className="w-24 shrink-0 flex gap-1.5 justify-end hidden lg:flex">

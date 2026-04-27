@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     { slug }
   ).catch(() => null);
   return {
-    title: `${post?.title || 'Post'} - Chrono Info`,
+    title: `${post?.title || 'Post'} - Chronotector`,
     description: post?.excerpt || '',
   };
 }

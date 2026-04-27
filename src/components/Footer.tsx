@@ -22,7 +22,7 @@ const footerLinks = [
     title: 'Features',
     links: [
       { name: 'Combat', href: '/features/combat' },
-      { name: 'Crafting', href: '/features/crafting-professions' },
+      { name: 'Professions', href: '/features/professions' },
       { name: 'Gameplay', href: '/features/gameplay' },
       { name: 'PvP', href: '/features/pvp' },
       { name: 'PvE', href: '/features/pve' },
@@ -44,7 +44,8 @@ const footerLinks = [
       { name: 'Lore', href: '/world/lore' },
       { name: 'Enemies', href: '/world/enemies' },
       { name: 'Release Date', href: '/release-date' },
-      { name: 'System Requirements', href: '/system-requirements' },
+      { name: 'FAQ', href: '/faq' },
+      { name: 'System Requirements', href: '/faq#system-requirements' },
     ],
   },
   {
@@ -102,12 +103,12 @@ export default function Footer({ siteName, siteAbbrev }: FooterProps) {
             <div className="w-5 h-5 bg-accent-gold rounded flex items-center justify-center text-void-black font-bold text-[10px]">
               {siteAbbrev}
             </div>
-            <span>{siteName} - Fan Site</span>
+            <span>{siteName} Fan Site</span>
           </div>
           <p className="text-center">
-            This is an independent fan project. Not affiliated with NPIXEL or Kakao Games.
+            This is an independent fan project. Not affiliated with Chrono Odyssey Studios or Kakao Games.
           </p>
-          <p>Chrono Odyssey &copy; NPIXEL / Kakao Games</p>
+          <p>Chrono Odyssey &copy; Chrono Odyssey Studios / Kakao Games</p>
         </div>
       </div>
     </footer>

@@ -27,12 +27,21 @@ const weaponMasterySkill = readTable('WeaponMasterySkillInfo.json');
 const classMastery = readTable('ClassMasteryInfo.json');
 const classMasterySkill = readTable('ClassMasterySkillInfo.json');
 const skillTable = readTable('Skill.json');
+const uiMaterialsSkill = readTable('UIMaterialsSkill.json');
+
+function getSkillIconPath(materialId: number): string {
+  const entry = uiMaterialsSkill[materialId] as any;
+  if (!entry) return '';
+  const assetPath: string = entry.Path.AssetPathName;
+  const filename = assetPath.split('/').pop()?.split('.')[0] || '';
+  return filename ? `/images/game-icons/skills/${filename}.png` : '';
+}
 
 // --- Weapon display names ---
 const WEAPON_DISPLAY: Record<string, string> = {
   GreatSword: 'Greatsword',
   LongSword: 'Longsword',
-  DualSwords: 'Dual Blades',
+  DualSwords: 'Dual Swords',
   LongBow: 'Bow',
   Crossbows: 'Crossbow',
   Rapier: 'Rapier',
@@ -69,6 +78,7 @@ interface WMNode {
   name: string;
   description: string;
   type: string;
+  icon: string;
   maxLevel: number;
   gridIndex: number;
   needMasteryLevel: number;
@@ -182,6 +192,7 @@ for (const classKey of CLASS_ORDER) {
         name: name || `Unknown (${e.MasteryID})`,
         description: desc,
         type,
+        icon: getSkillIconPath(e.UIIcon_MaterialID),
         maxLevel: e.MaxLevel,
         gridIndex: e.MasteryIndex,
         needMasteryLevel: e.NeedMasteryLevel,
@@ -256,6 +267,7 @@ export interface WeaponMasteryNode {
   name: string;
   description: string;
   type: 'Active' | 'ActiveEnforce' | 'Passive' | 'PassiveSynergy' | 'SpecialAction';
+  icon: string;
   maxLevel: number;
   gridIndex: number;
   needMasteryLevel: number;

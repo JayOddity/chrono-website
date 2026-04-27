@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'System Requirements - Chrono Info',
-  description: 'System Requirements - Chrono Info',
+  title: 'System Requirements - Chronotector',
+  description: 'System Requirements - Chronotector',
 };
 
 interface SpecRow {
@@ -12,11 +12,11 @@ interface SpecRow {
 }
 
 const specs: SpecRow[] = [
-  { label: 'OS', minimum: 'Windows 10', recommended: 'Windows 10' },
-  { label: 'Processor', minimum: 'Intel Core i5-3570K / AMD FX-8310', recommended: 'Intel Core i7-4790 / AMD Ryzen 3 3200G' },
-  { label: 'RAM', minimum: '12 GB', recommended: '16 GB' },
-  { label: 'Graphics', minimum: 'NVIDIA GTX 1060 / AMD RX 580', recommended: 'NVIDIA RTX 3060 / AMD RX 6800 XT' },
-  { label: 'DirectX', minimum: 'Version 11', recommended: 'Version 11' },
+  { label: 'OS', minimum: 'Windows 10 (64-bit)', recommended: 'Windows 10 (64-bit)' },
+  { label: 'Processor', minimum: 'Intel Core i5-3570K / AMD FX-8310', recommended: 'Intel Core i7-12700K / AMD Ryzen 5 5600X' },
+  { label: 'RAM', minimum: '16 GB', recommended: '32 GB' },
+  { label: 'Graphics', minimum: 'NVIDIA GeForce GTX 1660 Ti / AMD Radeon RX 6600', recommended: 'NVIDIA GeForce RTX 3070 / AMD Radeon RX 6800 XT' },
+  { label: 'DirectX', minimum: 'Version 11', recommended: 'Version 12' },
   { label: 'Storage', minimum: '50 GB', recommended: '50 GB' },
 ];
 

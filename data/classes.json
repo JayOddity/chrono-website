@@ -1,0 +1,56 @@
+[
+  {
+    "slug": "swordsman",
+    "classType": "Swordman",
+    "dataId": 11,
+    "name": "Swordsman",
+    "portraitIcon": "/images/game-icons/classes/swordsman-portrait.png",
+    "typeIcon": "/images/game-icons/classes/swordsman-type.png",
+    "portraitAssetPath": "/Game/UI/Game_Image/00_UI_Icons/Icon_Portrait/TX_PC001.TX_PC001"
+  },
+  {
+    "slug": "ranger",
+    "classType": "Archer",
+    "dataId": 21,
+    "name": "Ranger",
+    "portraitIcon": "/images/game-icons/classes/ranger-portrait.png",
+    "typeIcon": "/images/game-icons/classes/ranger-type.png",
+    "portraitAssetPath": "/Game/UI/Game_Image/00_UI_Icons/Icon_Portrait/TX_PC002.TX_PC002"
+  },
+  {
+    "slug": "paladin",
+    "classType": "Paladin",
+    "dataId": 31,
+    "name": "Paladin",
+    "portraitIcon": "/images/game-icons/classes/paladin-portrait.png",
+    "typeIcon": "/images/game-icons/classes/paladin-type.png",
+    "portraitAssetPath": "/Game/UI/Game_Image/00_UI_Icons/Icon_Portrait/TX_PC003.TX_PC003"
+  },
+  {
+    "slug": "sorcerer",
+    "classType": "Sorcerer",
+    "dataId": 41,
+    "name": "Sorcerer",
+    "portraitIcon": "/images/game-icons/classes/sorcerer-portrait.png",
+    "typeIcon": "/images/game-icons/classes/sorcerer-type.png",
+    "portraitAssetPath": "/Game/UI/Game_Image/00_UI_Icons/Icon_Portrait/TX_PC004.TX_PC004"
+  },
+  {
+    "slug": "berserker",
+    "classType": "Berserker",
+    "dataId": 51,
+    "name": "Berserker",
+    "portraitIcon": "/images/game-icons/classes/berserker-portrait.png",
+    "typeIcon": "/images/game-icons/classes/berserker-type.png",
+    "portraitAssetPath": "/Game/UI/Game_Image/00_UI_Icons/Icon_Portrait/TX_PC005.TX_PC005"
+  },
+  {
+    "slug": "assassin",
+    "classType": "Assassin",
+    "dataId": 61,
+    "name": "Assassin",
+    "portraitIcon": "/images/game-icons/classes/assassin-portrait.png",
+    "typeIcon": "/images/game-icons/classes/assassin-type.png",
+    "portraitAssetPath": "/Game/UI/Game_Image/00_UI_Icons/Icon_Portrait/TX_PC006.TX_PC006"
+  }
+]

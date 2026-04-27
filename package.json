@@ -6,7 +6,8 @@
     "dev": "next dev --port 3061",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "datamine": "node scripts/datamine/import.mjs"
   },
   "dependencies": {
     "@sanity/client": "^7.20.0",

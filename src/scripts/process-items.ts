@@ -37,6 +37,24 @@ const storeGroupRows = readTable('StoreItemGroup.json');
 const questRewardGroupRows = readTable('RewardQuestGroup.json');
 const dungeonRewardRows = readTable('RewardDungeon.json');
 const challengeRewardRows = readTable('RewardChallenge.json');
+const gradeProbabilityRows = readTable('GradeProbability.json');
+
+// GradeProbabilityID → displayed grade.
+// Deterministic tables (single 100% entry) override raw Grade on the item row.
+// Mixed-roll tables (multi-grade) fall back to the raw Grade field.
+const gradeByProbId: Record<number, string> = {};
+const GRADE_KEYS: Record<string, string> = {
+  CommonProbability: 'Common',
+  UncommonProbability: 'Uncommon',
+  RareProbability: 'Rare',
+  EpicProbability: 'Epic',
+  LegendaryProbability: 'Legendary',
+};
+for (const rid in gradeProbabilityRows) {
+  const r = gradeProbabilityRows[rid];
+  const active = Object.keys(GRADE_KEYS).filter((k) => (r[k] ?? 0) > 0);
+  if (active.length === 1) gradeByProbId[r.DataID] = GRADE_KEYS[active[0]];
+}
 
 // Build lookup maps
 console.log('Building lookup maps...');
@@ -194,6 +212,12 @@ for (const val of Object.values(challengeRewardRows) as any[]) {
 console.log('Processing items...');
 const CLASS_NAMES = ['Swordsman', 'Ranger', 'Sorcerer', 'Paladin', 'Berserker', 'Assassin'];
 
+interface PerkSlot {
+  kind: 'Common' | 'Special' | 'Reinforce';
+  reinforceLevel?: number;
+  pool: { name: string; description: string }[];
+}
+
 interface ProcessedItem {
   id: number;
   name: string;
@@ -216,8 +240,7 @@ interface ProcessedItem {
   gearScoreMin: number;
   gearScoreMax: number;
   maxReinforce: number;
-  perkSlots: number;
-  perks: { name: string; description: string }[];
+  perkSlots: PerkSlot[];
   uniquePerk: string | null;
   crafting: { materials: { name: string; count: number; materialId: number | null }[]; cost: number } | null;
   sources: string[];
@@ -237,7 +260,11 @@ for (const [key, raw] of Object.entries(itemRows) as [string, any][]) {
   if (name.includes('(Test)') || name.startsWith('Test_')) { skipped++; continue; }
 
   const detailType = stripEnum(raw.ItemDetailType);
-  const grade = stripEnum(raw.Grade);
+  // Prefer GradeProbability when it resolves to a single deterministic grade —
+  // Item.Grade is often a base-template value that does not reflect the actual
+  // dropped/equipped grade players see.
+  const grade =
+    gradeByProbId[raw.GradeProbabilityID] ?? stripEnum(raw.Grade);
   const armorType = stripEnum(raw.ArmorType);
   const bindType = stripEnum(raw.BindType);
   const tier = raw.Tier;
@@ -266,24 +293,30 @@ for (const [key, raw] of Object.entries(itemRows) as [string, any][]) {
     .map((v: boolean, i: number) => v ? CLASS_NAMES[i] : null)
     .filter(Boolean) as string[];
 
-  // Perks
-  // Perk slots and possible perks
-  const commonPerkSlots = raw.CommonPerkGroupID.filter((g: number) => g > 0).length;
-  const specialPerkSlots = raw.SpecialPerkGroupID.filter((g: number) => g > 0).length;
-  const perkSlots = commonPerkSlots + specialPerkSlots;
-
-  const perks: { name: string; description: string }[] = [];
-  // Only need to check first non-zero group since all slots use the same pool
-  const commonGroupId = raw.CommonPerkGroupID.find((g: number) => g > 0);
-  if (commonGroupId && commonPerksByGroup[commonGroupId]) {
-    for (const p of commonPerksByGroup[commonGroupId]) {
-      if (!perks.some(x => x.name === p.name)) perks.push(p);
-    }
+  // Perks — one PerkSlot per active entry in the slot arrays, each carrying
+  // its own pool (so different slots can point to different groups, and a
+  // deterministic 1-entry pool is preserved alongside random pools on the
+  // same item).
+  const perkSlots: PerkSlot[] = [];
+  for (const groupId of raw.CommonPerkGroupID as number[]) {
+    if (!groupId || groupId <= 0) continue;
+    const pool = commonPerksByGroup[groupId];
+    if (!pool || pool.length === 0) continue;
+    perkSlots.push({ kind: 'Common', pool });
   }
-  const specialGroupId = raw.SpecialPerkGroupID.find((g: number) => g > 0);
-  if (specialGroupId && specialPerksByGroup[specialGroupId]) {
-    for (const p of specialPerksByGroup[specialGroupId]) {
-      if (!perks.some(x => x.name === p.name)) perks.push(p);
+  for (const groupId of raw.SpecialPerkGroupID as number[]) {
+    if (!groupId || groupId <= 0) continue;
+    const pool = specialPerksByGroup[groupId];
+    if (!pool || pool.length === 0) continue;
+    perkSlots.push({ kind: 'Special', pool });
+  }
+  const reinforceGroupId = raw.ReinforceCommonPerkGroupID;
+  if (reinforceGroupId && reinforceGroupId > 0) {
+    const pool = commonPerksByGroup[reinforceGroupId];
+    if (pool && pool.length > 0 && tierInfo.maxReinforce > 0) {
+      for (let lvl = 1; lvl <= tierInfo.maxReinforce; lvl++) {
+        perkSlots.push({ kind: 'Reinforce', reinforceLevel: lvl, pool });
+      }
     }
   }
   const uniquePerk = raw.UniquePerkID > 0 ? uniquePerkMap[raw.UniquePerkID] || null : null;
@@ -334,7 +367,6 @@ for (const [key, raw] of Object.entries(itemRows) as [string, any][]) {
     gearScoreMax: tierInfo.max,
     maxReinforce: tierInfo.maxReinforce,
     perkSlots,
-    perks,
     uniquePerk,
     crafting,
     sources: itemSources[raw.ItemId] ? [...itemSources[raw.ItemId]].sort() : [],
@@ -370,7 +402,7 @@ const listItems = items.map(i => ({
   gearScoreMin: i.gearScoreMin,
   gearScoreMax: i.gearScoreMax,
   hasStats: i.stats.length > 0,
-  hasPerks: i.perks.length > 0,
+  hasPerks: i.perkSlots.length > 0,
   hasCrafting: i.crafting !== null,
   sources: i.sources,
 }));
@@ -433,7 +465,6 @@ for (const i of items) {
     gearScoreMax: i.gearScoreMax,
     maxReinforce: i.maxReinforce,
     perkSlots: i.perkSlots,
-    perks: i.perks,
     uniquePerk: i.uniquePerk,
     crafting: i.crafting,
     sources: i.sources,
@@ -465,6 +496,12 @@ export interface CraftingRecipe {
   cost: number;
 }
 
+export interface PerkSlot {
+  kind: 'Common' | 'Special' | 'Reinforce';
+  reinforceLevel?: number;
+  pool: { name: string; description: string }[];
+}
+
 export interface ItemDetail {
   name: string;
   description: string | null;
@@ -485,8 +522,7 @@ export interface ItemDetail {
   gearScoreMin: number;
   gearScoreMax: number;
   maxReinforce: number;
-  perkSlots: number;
-  perks: { name: string; description: string }[];
+  perkSlots: PerkSlot[];
   uniquePerk: string | null;
   crafting: CraftingRecipe | null;
   sources: string[];
@@ -525,7 +561,7 @@ for (const g of allGrades) {
   console.log('  ' + g + ': ' + items.filter(i => i.grade === g).length);
 }
 console.log('Items with stats: ' + items.filter(i => i.stats.length > 0).length);
-console.log('Items with perks: ' + items.filter(i => i.perks.length > 0).length);
+console.log('Items with perks: ' + items.filter(i => i.perkSlots.length > 0).length);
 console.log('Items with crafting: ' + (items.filter(i => i.crafting !== null).length));
 console.log('Items with sources: ' + items.filter(i => i.sources.length > 0).length);
 console.log('By source:');

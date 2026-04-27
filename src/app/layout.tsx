@@ -3,18 +3,15 @@ import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
-const SITE_NAME = "Chrono Info";
-const SITE_ABBREV = "CI";
-const SITE_URL = "https://chronoinfo.net";
+const SITE_NAME = "Chronotector";
+const SITE_ABBREV = "CT";
+const SITE_URL = "https://chronotector.com";
 const SITE_DESCRIPTION = "Chrono Odyssey MMO News & Guides";
 
 export const metadata: Metadata = {
   title: SITE_NAME,
   description: SITE_DESCRIPTION,
   metadataBase: new URL(SITE_URL),
-  icons: {
-    icon: '/favicon.ico',
-  },
   openGraph: {
     title: SITE_NAME,
     description: SITE_DESCRIPTION,

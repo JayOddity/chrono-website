@@ -1,5 +1,5 @@
 import type { ItemListEntry } from '@/data/items';
-import ItemCard from './ItemCard';
+import ItemRow from './ItemRow';
 import Pagination from './Pagination';
 import TableHeader from './TableHeader';
 
@@ -35,7 +35,7 @@ export default function ItemGrid({
         <div className="bg-card-bg border border-border-subtle rounded-lg overflow-hidden">
           <TableHeader />
           {items.map((item) => (
-            <ItemCard key={item.id} item={item} />
+            <ItemRow key={item.id} item={item} />
           ))}
         </div>
       )}

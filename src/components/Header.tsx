@@ -31,11 +31,14 @@ const navItems: NavItem[] = [
     label: 'Database',
     href: '/database',
     items: [
-      { name: 'All Items', href: '/database' },
+      { name: 'Items', href: '/database' },
       { name: 'Weapons', href: '/database?category=Weapon' },
       { name: 'Armor', href: '/database?category=Armor' },
       { name: 'Consumables', href: '/database?category=Consumable' },
       { name: 'Materials', href: '/database?category=Material' },
+      { name: 'Enemies', href: '/database?type=enemies' },
+      { name: 'NPCs', href: '/database?type=npcs' },
+      { name: 'Item Systems', href: '/database/systems' },
     ],
   },
   {
@@ -55,10 +58,19 @@ const navItems: NavItem[] = [
     href: '/features',
     items: [
       { name: 'Combat', href: '/features/combat' },
-      { name: 'Crafting & Professions', href: '/features/crafting-professions' },
+      { name: 'Weapons', href: '/weapons' },
+      {
+        name: 'Professions',
+        href: '/features/professions',
+        children: [
+          { name: 'Crafting', href: '/features/professions/crafting' },
+          { name: 'Gathering', href: '/features/professions/gathering' },
+        ],
+      },
       { name: 'Gameplay', href: '/features/gameplay' },
       { name: 'PvP', href: '/features/pvp' },
       { name: 'PvE', href: '/features/pve' },
+      { name: 'Activities', href: '/activities' },
     ],
   },
   {
@@ -67,23 +79,26 @@ const navItems: NavItem[] = [
     items: [
       { name: 'Lore', href: '/world/lore' },
       { name: 'Enemies', href: '/world/enemies' },
+      { name: 'Dungeons', href: '/dungeons' },
+      { name: 'Chronotector', href: '/chronotector' },
     ],
   },
   {
-    label: 'Release Date',
-    href: '/release-date',
-  },
-  {
-    label: 'System Reqs',
-    href: '/system-requirements',
-  },
-  {
-    label: 'Talent Calculator',
-    href: '/talent-calculator',
+    label: 'FAQ',
+    href: '/faq',
+    items: [
+      { name: 'FAQ', href: '/faq' },
+      { name: 'Release Date', href: '/release-date' },
+      { name: 'System Requirements', href: '/system-requirements' },
+    ],
   },
   {
     label: 'Map',
     href: '/map',
+  },
+  {
+    label: 'Talent Calculator',
+    href: '/talent-calculator',
   },
 ];
 
@@ -93,7 +108,7 @@ export default function Header({ siteName, siteAbbrev }: HeaderProps) {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   return (
-    <header className="sticky top-0 z-50 bg-void-black/95 backdrop-blur">
+    <header className="sticky top-0 z-50 bg-[#13131a]/95 backdrop-blur">
       {/* Top bar: Logo + Search */}
       <div className="border-b border-border-subtle">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -236,14 +251,25 @@ export default function Header({ siteName, siteAbbrev }: HeaderProps) {
                   </div>
                 )}
                 {nav.items?.map((item) => (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className="block px-6 py-2 text-sm text-text-secondary hover:text-accent-gold"
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    {item.name}
-                  </Link>
+                  <div key={item.name}>
+                    <Link
+                      href={item.href}
+                      className="block px-6 py-2 text-sm text-text-secondary hover:text-accent-gold"
+                      onClick={() => setMobileOpen(false)}
+                    >
+                      {item.name}
+                    </Link>
+                    {item.children?.map((child) => (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        className="block px-10 py-1.5 text-xs text-text-muted hover:text-accent-gold"
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        {child.name}
+                      </Link>
+                    ))}
+                  </div>
                 ))}
               </div>
             )

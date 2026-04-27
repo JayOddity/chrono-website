@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   TALENT_DATA,
   CLASS_RESOURCES,
-  GRID_COLS,
   type WeaponMasteryNode,
   type ClassTalentData,
   type WeaponTree,
@@ -61,11 +61,11 @@ const RESOURCE_COLORS: Record<string, string> = {
 
 const HEXAGON_CLIP = 'polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)';
 
-// Grid constants — 6 columns filling the tree panel width
-const NODE_SIZE = 80; // px for Active circles
-const HEX_SIZE = 68;  // px for hexagons
-const COL_SPACING = 150; // center-to-center horizontal
-const ROW_SPACING = 115; // center-to-center vertical
+// Grid constants — 7 columns filling the tree panel width
+const NODE_SIZE = 65; // px for Active circles
+const HEX_SIZE = 55;  // px for hexagons
+const COL_SPACING = 115; // center-to-center horizontal
+const ROW_SPACING = 105; // center-to-center vertical
 
 // --- URL State ---
 function encodeState(classIdx: number, weaponIdx: number, levels: NodeLevels, masterySet: Set<number>): string {
@@ -111,9 +111,10 @@ function isNodeUnlocked(node: WeaponMasteryNode, levels: NodeLevels, _weaponNode
   return true;
 }
 
-// --- Tooltip (game-style, appears to the right of tree) ---
-function NodeTooltip({ node, levels, weaponNodes, resourceName }: {
+// --- Tooltip (game-style, portals to body so it isn't clipped by the tree's overflow) ---
+function NodeTooltip({ node, levels, weaponNodes, resourceName, anchorRect }: {
   node: WeaponMasteryNode; levels: NodeLevels; weaponNodes: WeaponMasteryNode[]; resourceName: string;
+  anchorRect: DOMRect;
 }) {
   const level = levels[node.id] || 0;
   const prereqInfo: { name: string; current: number; required: number }[] = [];
@@ -126,28 +127,34 @@ function NodeTooltip({ node, levels, weaponNodes, resourceName }: {
     if (p) prereqInfo.push({ name: p.name, current: levels[node.prereq2.id] || 0, required: node.prereq2.level });
   }
 
-  return (
+  const TOOLTIP_W = 280;
+  const GAP = 16;
+  const anchorCenterY = anchorRect.top + anchorRect.height / 2;
+  // Prefer right-of-node; flip to left if it would overflow the viewport.
+  const rightX = anchorRect.right + GAP;
+  const leftX = anchorRect.left - GAP - TOOLTIP_W;
+  const x = rightX + TOOLTIP_W <= window.innerWidth ? rightX : Math.max(8, leftX);
+
+  return createPortal(
     <div
-      className="absolute z-[100] pointer-events-none"
+      className="fixed z-[1000] pointer-events-none"
       style={{
-        left: '100%',
-        top: '50%',
+        left: x,
+        top: anchorCenterY,
         transform: 'translateY(-50%)',
-        marginLeft: 16,
-        width: 280,
+        width: TOOLTIP_W,
         filter: 'drop-shadow(0 4px 24px rgba(0,0,0,0.9))',
       }}
     >
       <div style={{
-        background: 'rgba(10,10,18,0.95)',
+        background: '#2d2d2d',
         border: '1px solid rgba(200,168,78,0.3)',
         borderRadius: 8,
         padding: '14px 16px',
-        backdropFilter: 'blur(12px)',
       }}>
         {/* Name + type */}
         <div className="font-heading text-[15px] text-accent-gold leading-tight">{node.name}</div>
-        <div className="text-[11px] mt-1" style={{ color: '#a8a8bc' }}>{TYPE_LABELS[node.type]}</div>
+        <div className="text-[11px] mt-1" style={{ color: '#e8e8e8' }}>{TYPE_LABELS[node.type]}</div>
 
         {/* Description */}
         {node.description && (
@@ -186,7 +193,7 @@ function NodeTooltip({ node, levels, weaponNodes, resourceName }: {
             <div className="flex gap-0.5 flex-1">
               {Array.from({ length: node.maxLevel }).map((_, i) => (
                 <div key={i} className="flex-1 h-1.5 rounded-sm" style={{
-                  background: i < level ? '#c8a84e' : 'rgba(42,42,74,0.6)',
+                  background: i < level ? '#c8a84e' : 'rgba(50,50,50,0.6)',
                 }} />
               ))}
             </div>
@@ -215,11 +222,12 @@ function NodeTooltip({ node, levels, weaponNodes, resourceName }: {
         {/* Usage hint */}
         {node.maxLevel > 0 && (
           <p className="text-[10px] mt-3 pt-2 border-t" style={{ borderColor: 'rgba(200,168,78,0.15)', color: 'rgba(168,168,188,0.4)' }}>
-            Click to allocate / Right-click to remove
+            Click to allocate / Right click to remove
           </p>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -230,11 +238,12 @@ function TalentNode({ node, level, unlocked, canLevel, onAllocate, onDeallocate,
   weaponNodes: WeaponMasteryNode[]; levels: NodeLevels; resourceName: string;
 }) {
   const [showTooltip, setShowTooltip] = useState(false);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const isMaxed = level >= node.maxLevel && node.maxLevel > 0;
   const isSpecial = node.type === 'SpecialAction';
   const hasPoints = level > 0;
   const isCircle = node.type === 'Active';
-  const isEnforce = node.type === 'ActiveEnforce';
   const size = isCircle ? NODE_SIZE : HEX_SIZE;
 
   // State-based styling
@@ -258,10 +267,10 @@ function TalentNode({ node, level, unlocked, canLevel, onAllocate, onDeallocate,
         base.boxShadow = '0 0 10px rgba(200,168,78,0.25)';
       } else if (unlocked) {
         base.border = '2px solid rgba(224,192,104,0.35)';
-        base.background = 'rgba(10,10,15,0.4)';
+        base.background = 'rgba(40,40,40,0.4)';
       } else {
-        base.border = '2px solid rgba(60,60,80,0.4)';
-        base.background = 'rgba(10,10,15,0.3)';
+        base.border = '2px solid rgba(65,65,65,0.4)';
+        base.background = 'rgba(40,40,40,0.3)';
       }
     } else {
       // Hexagon
@@ -271,9 +280,9 @@ function TalentNode({ node, level, unlocked, canLevel, onAllocate, onDeallocate,
       } else if (hasPoints) {
         base.background = 'linear-gradient(180deg, rgba(200,168,78,0.2) 0%, rgba(200,168,78,0.06) 100%)';
       } else if (unlocked) {
-        base.background = 'rgba(30,30,50,0.5)';
+        base.background = 'rgba(40,40,40,0.5)';
       } else {
-        base.background = 'rgba(15,15,25,0.4)';
+        base.background = 'rgba(45,45,45,0.4)';
       }
     }
 
@@ -285,23 +294,27 @@ function TalentNode({ node, level, unlocked, canLevel, onAllocate, onDeallocate,
     if (isMaxed) return 'rgba(224,192,104,0.8)';
     if (hasPoints) return 'rgba(224,192,104,0.55)';
     if (unlocked) return 'rgba(224,192,104,0.25)';
-    return 'rgba(60,60,80,0.35)';
+    return 'rgba(65,65,65,0.35)';
   };
 
   const iconFilter = (() => {
     if (hasPoints || isMaxed) return 'brightness(1.4) drop-shadow(0 0 4px rgba(224,192,104,0.3))';
     if (isSpecial) return 'brightness(0.9)';
-    if (unlocked) return 'brightness(0.55)';
-    return 'brightness(0.2)';
+    if (unlocked) return 'brightness(0) invert(1)';
+    return 'brightness(0.7) saturate(0)';
   })();
 
-  const opacity = !unlocked && !hasPoints && !isSpecial ? 0.5 : 1;
+  const opacity = !unlocked && !hasPoints && !isSpecial ? 0.75 : 1;
 
   return (
     <div
+      ref={wrapperRef}
       className="relative"
       style={{ width: size, height: size + 18, opacity }}
-      onMouseEnter={() => setShowTooltip(true)}
+      onMouseEnter={() => {
+        if (wrapperRef.current) setAnchorRect(wrapperRef.current.getBoundingClientRect());
+        setShowTooltip(true);
+      }}
       onMouseLeave={() => setShowTooltip(false)}
     >
       {/* The node button */}
@@ -347,9 +360,9 @@ function TalentNode({ node, level, unlocked, canLevel, onAllocate, onDeallocate,
               clipPath: HEXAGON_CLIP,
               ...((() => {
                 if (isMaxed) return { background: 'linear-gradient(180deg, rgba(200,168,78,0.3) 0%, rgba(20,18,12,0.95) 100%)' };
-                if (hasPoints) return { background: 'linear-gradient(180deg, rgba(200,168,78,0.18) 0%, rgba(14,14,22,0.95) 100%)' };
-                if (unlocked) return { background: 'linear-gradient(180deg, rgba(26,26,42,0.8) 0%, rgba(12,12,20,0.95) 100%)' };
-                return { background: 'rgba(12,12,20,0.9)' };
+                if (hasPoints) return { background: 'linear-gradient(180deg, rgba(200,168,78,0.18) 0%, rgba(45,45,45,0.95) 100%)' };
+                if (unlocked) return { background: 'linear-gradient(180deg, rgba(35,35,35,0.8) 0%, rgba(40,40,40,0.95) 100%)' };
+                return { background: 'rgba(40,40,40,0.9)' };
               })()),
             }}
           >
@@ -363,29 +376,6 @@ function TalentNode({ node, level, unlocked, canLevel, onAllocate, onDeallocate,
             )}
           </div>
         </button>
-      )}
-
-      {/* "E" badge for ActiveEnforce */}
-      {isEnforce && (
-        <div style={{
-          position: 'absolute',
-          top: -2,
-          left: -2,
-          width: 18,
-          height: 18,
-          borderRadius: '50%',
-          background: '#22c55e',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 10,
-          fontWeight: 700,
-          color: '#fff',
-          zIndex: 10,
-          border: '2px solid rgba(10,10,15,0.8)',
-        }}>
-          E
-        </div>
       )}
 
       {/* Maxed glow for hexagons */}
@@ -416,18 +406,60 @@ function TalentNode({ node, level, unlocked, canLevel, onAllocate, onDeallocate,
         </div>
       )}
 
-      {/* Tooltip */}
-      {showTooltip && (
-        <NodeTooltip node={node} levels={levels} weaponNodes={weaponNodes} resourceName={resourceName} />
+      {/* Tooltip — portaled to body so the tree's overflow clipping can't hide it */}
+      {showTooltip && anchorRect && (
+        <NodeTooltip node={node} levels={levels} weaponNodes={weaponNodes} resourceName={resourceName} anchorRect={anchorRect} />
       )}
     </div>
   );
 }
 
 // --- Layout ---
-// Active skill families (I→II→III) are stacked vertically in the same column.
-// The base skill's gridIndex determines the column. Rows are assigned by needMasteryLevel tier.
-// Passives/standalone nodes fill empty cells in the grid.
+// Positions come from the game widget (WBP_SkillTree_Type6) which every weapon uses.
+// MasteryIndex → column is universal across all 18 weapons; only the skill content changes.
+// Layout: 3 A-side chain columns | S passives zigzag | 3 B-side chain columns.
+// Chains that don't overlap in tiers share a column (A01+A05, A02+A04, B01+B05, B02+B04).
+// SpecialAction (MI 0) is rendered separately in the InfoPanel, not in the grid.
+
+const GRID_COL_COUNT = 7;
+
+// MasteryIndex → { col, nudgeX?, nudgeY? }. S-middle passives zigzag left/right in the
+// game UI and stagger vertically onto half-rows so pairs sharing a tier don't collide.
+const MI_LAYOUT: Record<number, { col: number; nudgeX?: number; nudgeY?: number }> = {
+  // Col 0 — A-left (A01 chain + A05 unused)
+  1: { col: 0 }, 6: { col: 0 }, 17: { col: 0 },
+  30: { col: 0 }, 35: { col: 0 },
+
+  // Col 1 — A-middle (A03 chain)
+  13: { col: 1 }, 21: { col: 1 }, 29: { col: 1 },
+
+  // Col 2 — A-inner (A02 chain + A04 chain)
+  4: { col: 2 }, 9: { col: 2 }, 18: { col: 2 },
+  22: { col: 2 }, 26: { col: 2 }, 34: { col: 2 },
+
+  // Col 3 — S middle (passives zigzag + synergy chain). Right-nudge passives sit on
+  // the half-row below their tier so they don't crowd the left-nudge partner.
+  2:  { col: 3, nudgeX: -30, nudgeY: -26 },
+  5:  { col: 3, nudgeX: 30,  nudgeY: 26  },
+  7:  { col: 3, nudgeX: -30 },
+  10: { col: 3, nudgeY: 30 },
+  11: { col: 3, nudgeX: 30,  nudgeY: -60 },
+  14: { col: 3, nudgeX: -30 },
+  15: { col: 3, nudgeX: 30 },
+  23: { col: 3, nudgeX: -30 },
+  27: { col: 3, nudgeX: 30 },
+
+  // Col 4 — B-inner (B02 chain + B04 chain)
+  8:  { col: 4 }, 16: { col: 4 }, 25: { col: 4 },
+  28: { col: 4 }, 32: { col: 4 }, 37: { col: 4 },
+
+  // Col 5 — B-middle (B03 chain)
+  19: { col: 5 }, 24: { col: 5 }, 33: { col: 5 },
+
+  // Col 6 — B-right (B01 chain + B05 unused)
+  3:  { col: 6 }, 12: { col: 6 }, 20: { col: 6 },
+  31: { col: 6 }, 36: { col: 6 },
+};
 
 interface GridLayout {
   positions: Map<number, { cx: number; cy: number; size: number }>;
@@ -436,173 +468,31 @@ interface GridLayout {
 }
 
 function buildGridLayout(weapon: WeaponTree): GridLayout {
-  // Row mapping: each unique needMasteryLevel gets a row
-  const allLevels = [...new Set(weapon.nodes.map(n => n.needMasteryLevel))].sort((a, b) => a - b);
+  const gridNodes = weapon.nodes.filter(n => n.type !== 'SpecialAction');
+
+  const allLevels = [...new Set(gridNodes.map(n => n.needMasteryLevel))].sort((a, b) => a - b);
   const levelToRow = new Map<number, number>();
   allLevels.forEach((lv, i) => levelToRow.set(lv, i));
   const totalRows = allLevels.length;
 
   const positions = new Map<number, { cx: number; cy: number; size: number }>();
 
-  // Build active chains (I→II→III)
-  const chainMap = new Map<number, { base: WeaponMasteryNode; ii?: WeaponMasteryNode; iii?: WeaponMasteryNode }>();
-
-  const baseSkills = weapon.nodes
-    .filter(n => n.type === 'Active' && n.maxLevel >= 3)
-    .sort((a, b) => a.gridIndex - b.gridIndex);
-
-  for (const base of baseSkills) {
-    const entry: { base: WeaponMasteryNode; ii?: WeaponMasteryNode; iii?: WeaponMasteryNode } = { base };
-
-    const ii = weapon.nodes.find(n => n.prereq1?.id === base.id && !n.prereq2 && n.type === 'ActiveEnforce');
-    if (ii) { entry.ii = ii; }
-
-    const iii = ii && weapon.nodes.find(n => n.prereq1?.id === base.id && n.prereq2?.id === ii.id);
-    if (iii) { entry.iii = iii; }
-
-    chainMap.set(base.id, entry);
-  }
-
-  // Assign columns using within-tier position from MasteryIndex order.
-  // Tier 0 always has 6 nodes filling all 6 columns. For each tier, sort nodes
-  // by gridIndex — the sorted position IS the left-to-right column.
-  // Chain members (II/III) inherit their base skill's column.
-
-  const nodeCol = new Map<number, number>(); // nodeId -> column
-
-  // Group nodes by tier
-  const tiers = new Map<number, WeaponMasteryNode[]>();
-  for (const node of weapon.nodes) {
-    const tier = node.needMasteryLevel;
-    if (!tiers.has(tier)) tiers.set(tier, []);
-    tiers.get(tier)!.push(node);
-  }
-  for (const nodes of tiers.values()) {
-    nodes.sort((a, b) => a.gridIndex - b.gridIndex);
-  }
-
-  // Track which tiers each column has chain nodes in, so chains can share
-  // a column if their tier spans don't overlap.
-  const colChainTiers = new Map<number, Set<number>>(); // col -> set of tiers with chain nodes
-
-  // Collect each chain's full tier set (base + II + III tiers)
-  const chainTierSets = new Map<number, Set<number>>(); // baseId -> tiers used
-  for (const [baseId, chain] of chainMap) {
-    const tierSet = new Set<number>();
-    tierSet.add(chain.base.needMasteryLevel);
-    if (chain.ii) tierSet.add(chain.ii.needMasteryLevel);
-    if (chain.iii) tierSet.add(chain.iii.needMasteryLevel);
-    chainTierSets.set(baseId, tierSet);
-  }
-
-  // Process tier 0 first — within-tier position = column
-  const tier0 = tiers.get(allLevels[0]) || [];
-  for (let i = 0; i < tier0.length; i++) {
-    nodeCol.set(tier0[i].id, i);
-    if (chainMap.has(tier0[i].id)) {
-      const tierSet = chainTierSets.get(tier0[i].id)!;
-      colChainTiers.set(i, new Set(tierSet));
-    }
-  }
-
-  // Process remaining tiers in order.
-  for (const level of allLevels) {
-    if (level === allLevels[0]) continue;
-    const tierNodes = tiers.get(level) || [];
-
-    // Inherit columns for chain II/III nodes
-    const needsCol: WeaponMasteryNode[] = [];
-    for (const node of tierNodes) {
-      let inherited = false;
-      for (const [baseId, chain] of chainMap) {
-        if (chain.ii?.id === node.id || chain.iii?.id === node.id) {
-          const baseCol = nodeCol.get(baseId);
-          if (baseCol !== undefined) {
-            nodeCol.set(node.id, baseCol);
-            inherited = true;
-          }
-          break;
-        }
-      }
-      if (!inherited) needsCol.push(node);
-    }
-
-    // Separate new base skills from passives/other
-    const newBases: WeaponMasteryNode[] = [];
-    const others: WeaponMasteryNode[] = [];
-    for (const node of needsCol) {
-      if (chainMap.has(node.id)) newBases.push(node);
-      else others.push(node);
-    }
-
-    // Build set of columns occupied in THIS row
-    const rowOccupied = new Set<number>();
-    for (const node of tierNodes) {
-      const col = nodeCol.get(node.id);
-      if (col !== undefined) rowOccupied.add(col);
-    }
-
-    // Assign new base skills to columns where their tier span doesn't conflict
-    for (const base of newBases) {
-      const myTiers = chainTierSets.get(base.id)!;
-      let assigned = false;
-      for (let c = 0; c < GRID_COLS; c++) {
-        if (rowOccupied.has(c)) continue;
-        const existing = colChainTiers.get(c);
-        // Check if any of this chain's tiers conflict with tiers already in this column
-        let conflict = false;
-        if (existing) {
-          for (const t of myTiers) {
-            if (existing.has(t)) { conflict = true; break; }
-          }
-        }
-        if (!conflict) {
-          nodeCol.set(base.id, c);
-          rowOccupied.add(c);
-          if (!colChainTiers.has(c)) colChainTiers.set(c, new Set());
-          for (const t of myTiers) colChainTiers.get(c)!.add(t);
-          assigned = true;
-          break;
-        }
-      }
-      // Fallback: just use first empty column in this row
-      if (!assigned) {
-        for (let c = 0; c < GRID_COLS; c++) {
-          if (!rowOccupied.has(c)) {
-            nodeCol.set(base.id, c);
-            rowOccupied.add(c);
-            break;
-          }
-        }
-      }
-    }
-
-    // Assign passives/other nodes to remaining empty cells
-    const emptyCols: number[] = [];
-    for (let c = 0; c < GRID_COLS; c++) {
-      if (!rowOccupied.has(c)) emptyCols.push(c);
-    }
-    for (let i = 0; i < others.length; i++) {
-      const col = i < emptyCols.length ? emptyCols[i] : i;
-      nodeCol.set(others[i].id, col);
-      rowOccupied.add(col);
-    }
-  }
-
-  // Now place all nodes using their assigned columns
-  for (const node of weapon.nodes) {
-    const col = nodeCol.get(node.id) ?? 0;
+  for (const node of gridNodes) {
+    const layout = MI_LAYOUT[node.gridIndex];
+    if (!layout) continue;
     const row = levelToRow.get(node.needMasteryLevel) ?? 0;
+    const cx = layout.col * COL_SPACING + COL_SPACING / 2 + (layout.nudgeX ?? 0);
+    const cy = row * ROW_SPACING + ROW_SPACING / 2 + (layout.nudgeY ?? 0);
     positions.set(node.id, {
-      cx: col * COL_SPACING + COL_SPACING / 2,
-      cy: row * ROW_SPACING + ROW_SPACING / 2,
+      cx,
+      cy,
       size: (node.type === 'Active' && node.maxLevel >= 3) ? NODE_SIZE : HEX_SIZE,
     });
   }
 
   return {
     positions,
-    width: GRID_COLS * COL_SPACING,
+    width: GRID_COL_COUNT * COL_SPACING,
     height: totalRows * ROW_SPACING,
   };
 }
@@ -638,8 +528,8 @@ function ConnectionLines({ layout, levels, weapon }: {
           <line key={`${fromId}-${toId}`}
             x1={from.cx} y1={from.cy + from.size / 2}
             x2={to.cx} y2={to.cy - to.size / 2}
-            stroke={active ? 'rgba(224,192,104,0.35)' : 'rgba(100,100,120,0.18)'}
-            strokeWidth={1}
+            stroke={active ? 'rgba(224,192,104,0.85)' : 'rgba(190,190,190,0.55)'}
+            strokeWidth={1.5}
           />
         );
       })}
@@ -667,10 +557,9 @@ function WeaponTreeGrid({ weapon, levels, onAllocate, onDeallocate, resourceName
           const pos = layout.positions.get(node.id);
           if (!pos) return null;
           return (
-            <div key={node.id} className="absolute" style={{
+            <div key={node.id} className="absolute z-[2] hover:z-[100]" style={{
               left: pos.cx - pos.size / 2,
               top: pos.cy - pos.size / 2,
-              zIndex: 2,
             }}>
               <TalentNode
                 node={node}
@@ -709,7 +598,7 @@ function InfoPanel({ weapon, levels, classData }: {
     <div className="flex flex-col gap-6">
       {/* Weapon name + silhouette bg */}
       <div className="relative overflow-hidden rounded-lg p-5" style={{
-        background: 'linear-gradient(135deg, rgba(13,13,24,0.9) 0%, rgba(10,10,18,0.95) 100%)',
+        background: 'linear-gradient(135deg, rgba(45,45,45,0.9) 0%, rgba(45,45,45,0.95) 100%)',
         border: '1px solid rgba(200,168,78,0.15)',
         minHeight: 140,
       }}>
@@ -732,7 +621,7 @@ function InfoPanel({ weapon, levels, classData }: {
             Mastery Level <span className="text-accent-gold font-bold">{totalSpent}</span>
             <span className="text-text-muted">/{maxPossible}</span>
           </div>
-          <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(42,42,74,0.5)' }}>
+          <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(50,50,50,0.5)' }}>
             <div
               className="h-full rounded-full transition-all duration-300"
               style={{
@@ -747,7 +636,7 @@ function InfoPanel({ weapon, levels, classData }: {
       {/* Special Move */}
       {specialNode && (
         <div className="rounded-lg p-4" style={{
-          background: 'rgba(13,13,24,0.7)',
+          background: 'rgba(45,45,45,0.7)',
           border: '1px solid rgba(200,168,78,0.12)',
         }}>
           <div className="text-[11px] text-text-muted uppercase tracking-wider mb-3 font-heading">Special Move</div>
@@ -766,7 +655,7 @@ function InfoPanel({ weapon, levels, classData }: {
                 width: 48,
                 height: 48,
                 clipPath: HEXAGON_CLIP,
-                background: 'rgba(14,14,22,0.9)',
+                background: 'rgba(45,45,45,0.9)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -789,7 +678,7 @@ function InfoPanel({ weapon, levels, classData }: {
 
       {/* Equipped Skills */}
       <div className="rounded-lg p-4" style={{
-        background: 'rgba(13,13,24,0.7)',
+        background: 'rgba(45,45,45,0.7)',
         border: '1px solid rgba(200,168,78,0.12)',
       }}>
         <div className="text-[11px] text-text-muted uppercase tracking-wider mb-3 font-heading">Equipped Skills</div>
@@ -801,8 +690,8 @@ function InfoPanel({ weapon, levels, classData }: {
                 width: 56,
                 height: 56,
                 borderRadius: '50%',
-                border: skill ? '2px solid rgba(224,192,104,0.5)' : '2px solid rgba(42,42,74,0.3)',
-                background: skill ? 'rgba(200,168,78,0.08)' : 'rgba(14,14,22,0.5)',
+                border: skill ? '2px solid rgba(224,192,104,0.5)' : '2px solid rgba(50,50,50,0.3)',
+                background: skill ? 'rgba(200,168,78,0.08)' : 'rgba(45,45,45,0.5)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -811,7 +700,7 @@ function InfoPanel({ weapon, levels, classData }: {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={skill.icon} alt="" style={{ width: '60%', height: '60%', objectFit: 'contain', filter: 'brightness(1.2)' }} />
                 ) : (
-                  <span style={{ fontSize: 18, color: 'rgba(42,42,74,0.4)' }}>+</span>
+                  <span style={{ fontSize: 18, color: 'rgba(50,50,50,0.4)' }}>+</span>
                 )}
               </div>
             );
@@ -829,7 +718,7 @@ function InfoPanel({ weapon, levels, classData }: {
       {/* Class portrait */}
       <div className="rounded-lg overflow-hidden" style={{
         border: '1px solid rgba(200,168,78,0.12)',
-        background: 'rgba(13,13,24,0.7)',
+        background: 'rgba(45,45,45,0.7)',
       }}>
         <div className="relative" style={{ height: 120 }}>
           <Image
@@ -839,7 +728,7 @@ function InfoPanel({ weapon, levels, classData }: {
             className="object-cover opacity-30"
           />
           <div className="absolute inset-0 flex items-end p-3" style={{
-            background: 'linear-gradient(transparent, rgba(10,10,18,0.9))',
+            background: 'linear-gradient(transparent, rgba(45,45,45,0.9))',
           }}>
             <span className="font-heading text-lg text-accent-gold">{classData.displayName}</span>
           </div>
@@ -885,7 +774,7 @@ function ClassMasterySection({ classData, selectedMastery, onToggle }: {
                     <button key={node.id} onClick={() => onToggle(node.id)}
                       className="relative p-2 rounded border text-left transition-all duration-150 w-full"
                       style={{
-                        borderColor: selected ? '#c8a84e' : 'rgba(42,42,74,0.6)',
+                        borderColor: selected ? '#c8a84e' : 'rgba(50,50,50,0.6)',
                         background: selected ? 'rgba(200,168,78,0.08)' : 'rgba(22,22,42,0.4)',
                       }}>
                       <div className="flex items-start gap-2">
@@ -939,6 +828,7 @@ export default function TalentCalculator() {
   const [selectedWeapon, setSelectedWeapon] = useState(initialState?.weaponIdx ?? 0);
   const [nodeLevels, setNodeLevels] = useState<NodeLevels>(initialState?.levels ?? {});
   const [selectedMastery, setSelectedMastery] = useState<Set<number>>(initialState?.masterySet ?? new Set());
+  const [showClassMastery, setShowClassMastery] = useState(false);
 
   const classData = TALENT_DATA[selectedClass];
   const weaponIdx = Math.min(selectedWeapon, classData.weapons.length - 1);
@@ -1019,11 +909,11 @@ export default function TalentCalculator() {
       <div className="flex items-end justify-between gap-2 border-b border-border-subtle/60">
         <div className="flex">
           {classData.weapons.map((wep, i) => {
-            const isActive = i === weaponIdx;
+            const isActive = i === weaponIdx && !showClassMastery;
             const wepIcon = WEAPON_ICON[wep.weaponKey];
             const wepPts = wep.nodes.reduce((s, n) => s + (nodeLevels[n.id] || 0), 0);
             return (
-              <button key={wep.weaponKey} onClick={() => setSelectedWeapon(i)}
+              <button key={wep.weaponKey} onClick={() => { setSelectedWeapon(i); setShowClassMastery(false); }}
                 className={`relative flex items-center gap-2 px-4 py-2 text-sm transition-all ${isActive ? 'text-accent-gold' : 'text-text-muted hover:text-text-primary'}`}>
                 {wepIcon && (
                   <div className="w-5 h-5 shrink-0">
@@ -1040,6 +930,14 @@ export default function TalentCalculator() {
               </button>
             );
           })}
+          <button onClick={() => setShowClassMastery(true)}
+            className={`relative flex items-center gap-2 px-4 py-2 text-sm transition-all ${showClassMastery ? 'text-accent-gold' : 'text-text-muted hover:text-text-primary'}`}>
+            <span className="font-medium">Class Mastery</span>
+            {selectedMastery.size > 0 && (
+              <span className={`text-[10px] px-1 py-0.5 rounded ${showClassMastery ? 'bg-accent-gold/15 text-accent-gold' : 'bg-dark-surface text-text-muted'}`}>{selectedMastery.size}</span>
+            )}
+            {showClassMastery && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-gold rounded-t-full" />}
+          </button>
         </div>
         <div className="flex gap-1.5 pb-1.5">
           {/* Mastery point counter */}
@@ -1053,21 +951,25 @@ export default function TalentCalculator() {
         </div>
       </div>
 
-      {/* Main layout: Tree (left) + Info Panel (right) */}
+      {/* Main layout: Tree/Mastery (left) + Info Panel (right) */}
       <div className="flex gap-5">
-        {/* Tree area */}
+        {/* Tree or Class Mastery area */}
         <div className="flex-1 rounded-lg border border-border-subtle overflow-y-auto" style={{
-          background: 'linear-gradient(135deg, #0d0d18 0%, #0a0a12 50%, #0d0d1a 100%)',
+          background: 'linear-gradient(135deg, #2d2d2d 0%, #282828 50%, #2d2d2d 100%)',
           maxHeight: '85vh',
         }}>
           <div className="p-4 sm:p-6">
-            <WeaponTreeGrid
-              weapon={weaponData}
-              levels={nodeLevels}
-              onAllocate={handleAllocate}
-              onDeallocate={handleDeallocate}
-              resourceName={resourceName}
-            />
+            {showClassMastery ? (
+              <ClassMasterySection classData={classData} selectedMastery={selectedMastery} onToggle={handleToggleMastery} />
+            ) : (
+              <WeaponTreeGrid
+                weapon={weaponData}
+                levels={nodeLevels}
+                onAllocate={handleAllocate}
+                onDeallocate={handleDeallocate}
+                resourceName={resourceName}
+              />
+            )}
           </div>
         </div>
 
@@ -1077,16 +979,9 @@ export default function TalentCalculator() {
         </div>
       </div>
 
-      {/* Class Mastery */}
-      <div className="rounded-lg border border-border-subtle p-5 mt-2" style={{
-        background: 'linear-gradient(180deg, #0d0d18 0%, #0a0a12 100%)',
-      }}>
-        <ClassMasterySection classData={classData} selectedMastery={selectedMastery} onToggle={handleToggleMastery} />
-      </div>
-
       {/* Build Summary */}
       {(Object.values(nodeLevels).some(v => v > 0) || selectedMastery.size > 0) && (
-        <div className="rounded-lg border border-border-subtle p-4" style={{ background: 'rgba(13,13,24,0.6)' }}>
+        <div className="rounded-lg border border-border-subtle p-4" style={{ background: 'rgba(45,45,45,0.6)' }}>
           <h3 className="font-heading text-sm text-accent-gold mb-3">Build Summary</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {classData.weapons.map(wep => {

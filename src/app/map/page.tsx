@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import InteractiveMap from './InteractiveMap';
 
 export const metadata: Metadata = {
-  title: 'Interactive Map - Chrono Odyssey | Chrono Info',
+  title: 'Interactive Map - Chrono Odyssey | Chronotector',
   description:
     'Explore the world of Setera with our interactive map. Find warp points, settlements, monster spawns, dungeons, and more.',
 };

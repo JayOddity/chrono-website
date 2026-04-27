@@ -17,7 +17,7 @@ export const factions: Faction[] = [
     name: 'The Void',
     tagline: 'Otherworldly invaders that reject the existence of life itself.',
     description:
-      'Representing nothingness and the cruel abyss, this faction aims for complete world destruction. Though nearly immortal, Setera\u2019s rejection of their existence limits their power\u2014but they\u2019re growing stronger.',
+      'This faction embodies nothingness and the cruel abyss, aiming for complete world destruction. Though nearly immortal, Setera\u2019s rejection of their existence limits their power they\u2019re growing stronger.',
     colour: 'text-purple-400',
   },
   {

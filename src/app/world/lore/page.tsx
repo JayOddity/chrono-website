@@ -3,8 +3,8 @@ import { factions } from '@/data/world';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Lore - Chrono Info',
-  description: 'Lore - Chrono Info',
+  title: 'Lore - Chronotector',
+  description: 'Lore - Chronotector',
 };
 
 export default function LorePage() {

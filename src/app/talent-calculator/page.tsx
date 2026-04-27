@@ -1,8 +1,9 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import TalentCalculator from './TalentCalculator';
 
 export const metadata: Metadata = {
-  title: 'Talent Calculator - Chrono Odyssey | Chrono Info',
+  title: 'Talent Calculator - Chrono Odyssey | Chronotector',
   description:
     'Plan your Chrono Odyssey build with our interactive talent calculator. Explore weapon mastery trees and class mastery skills for all 6 classes.',
 };
@@ -17,7 +18,9 @@ export default function TalentCalculatorPage() {
         Plan your build by allocating points across weapon mastery trees and
         class mastery skills. Data sourced from the June 2025 closed beta.
       </p>
-      <TalentCalculator />
+      <Suspense fallback={<div className="text-text-muted text-sm">Loading calculator…</div>}>
+        <TalentCalculator />
+      </Suspense>
     </main>
   );
 }

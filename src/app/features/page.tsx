@@ -3,7 +3,7 @@ import { features } from '@/data/features';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Features - Chrono Info',
+  title: 'Features - Chronotector',
   description: 'Chrono Odyssey features: combat, crafting, gameplay, PvP, and PvE.',
 };
 

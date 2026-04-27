@@ -86,7 +86,7 @@ export default async function HomePage() {
       excerpt: steamBBCodeToText(item.contents).slice(0, 200),
       date: new Date(item.date * 1000).toISOString(),
       source: 'steam',
-      href: item.url,
+      href: `/news/steam/${item.gid}`,
       image: getSteamImage(item.contents, i),
     });
   });
@@ -106,12 +106,12 @@ export default async function HomePage() {
             <span className="absolute bottom-3 left-3 font-heading text-2xl text-white">News</span>
           </Link>
           <Link href="/classes" className="group relative aspect-video rounded-lg overflow-hidden border border-border-subtle hover:border-accent-gold-dim transition-colors">
-            <Image src="/images/classes/berserker-1.avif" alt="Classes" fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="33vw" />
+            <Image src="/images/home/classes-card.avif" alt="Classes" fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="33vw" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
             <span className="absolute bottom-3 left-3 font-heading text-2xl text-white">Classes</span>
           </Link>
           <Link href="/features/combat" className="group relative aspect-video rounded-lg overflow-hidden border border-border-subtle hover:border-accent-gold-dim transition-colors">
-            <Image src="/images/classes/swordsman-1.avif" alt="Combat" fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="33vw" />
+            <Image src="/images/home/combat-card.avif" alt="Combat" fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="33vw" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
             <span className="absolute bottom-3 left-3 font-heading text-2xl text-white">Combat</span>
           </Link>
@@ -123,7 +123,7 @@ export default async function HomePage() {
             <span className="absolute bottom-3 left-3 font-heading text-2xl text-white">Release Date</span>
           </Link>
           <Link href="/world/lore" className="group relative aspect-video rounded-lg overflow-hidden border border-border-subtle hover:border-accent-gold-dim transition-colors">
-            <Image src="/images/classes/paladin-1.avif" alt="World & Lore" fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="33vw" />
+            <Image src="/images/world/soroma-stronghold.avif" alt="World & Lore" fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="33vw" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
             <span className="absolute bottom-3 left-3 font-heading text-2xl text-white">World & Lore</span>
           </Link>
@@ -147,7 +147,6 @@ export default async function HomePage() {
         {feed.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {feed.slice(0, 9).map((item) => {
-              const isExternal = item.source === 'steam';
               const card = (
                 <>
                   {item.image ? (
@@ -177,18 +176,14 @@ export default async function HomePage() {
                           ? 'bg-blue-500/10 text-blue-400'
                           : 'bg-accent-gold/10 text-accent-gold'
                       }`}>
-                        {item.source === 'steam' ? 'Steam' : 'Chrono Info'}
+                        {item.source === 'steam' ? 'Steam' : 'Chronotector'}
                       </span>
                     </div>
                   </div>
                 </>
               );
 
-              return isExternal ? (
-                <a key={item.id} href={item.href} target="_blank" rel="noopener noreferrer" className="flex flex-col bg-card-bg border border-border-subtle rounded-lg overflow-hidden hover:border-accent-gold-dim transition-colors glow-gold-hover group">
-                  {card}
-                </a>
-              ) : (
+              return (
                 <Link key={item.id} href={item.href} className="flex flex-col bg-card-bg border border-border-subtle rounded-lg overflow-hidden hover:border-accent-gold-dim transition-colors glow-gold-hover group">
                   {card}
                 </Link>
