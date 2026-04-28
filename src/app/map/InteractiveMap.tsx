@@ -1801,7 +1801,7 @@ export default function InteractiveMap({
               <g key="ds-anchor" pointerEvents="none">
                 <circle cx={pos.x} cy={pos.y} r={10} fill="#facc15" opacity={0.25} />
                 <circle cx={pos.x} cy={pos.y} r={5} fill="#facc15" stroke="#fde68a" strokeWidth={1} />
-                <text x={pos.x + 8} y={pos.y - 6} fill="#facc15" fontSize={10} fontFamily="Cinzel" stroke="#000" strokeWidth={2} strokeOpacity={0.75} paintOrder="stroke">
+                <text x={pos.x + 8} y={pos.y - 6} fill="#facc15" fontSize={10} style={{ fontFamily: 'var(--font-cinzel), serif' }} stroke="#000" strokeWidth={2} strokeOpacity={0.75} paintOrder="stroke">
                   {DAWN_SLOPE_ANCHOR.name}
                 </text>
               </g>
@@ -1823,7 +1823,7 @@ export default function InteractiveMap({
                   height={px}
                   preserveAspectRatio="xMidYMid meet"
                 />
-                <text x={pos.x + half + (2 / zoom)} y={pos.y - (2 / zoom)} fill="#c4b5fd" fontSize={10 / zoom} fontFamily="Cinzel" stroke="#000" strokeWidth={2 / zoom} strokeOpacity={0.75} paintOrder="stroke">
+                <text x={pos.x + half + (2 / zoom)} y={pos.y - (2 / zoom)} fill="#c4b5fd" fontSize={10 / zoom} style={{ fontFamily: 'var(--font-cinzel), serif' }} stroke="#000" strokeWidth={2 / zoom} strokeOpacity={0.75} paintOrder="stroke">
                   {g.name}
                 </text>
               </g>
@@ -1840,7 +1840,7 @@ export default function InteractiveMap({
             return (
               <g key={key}>
                 <circle cx={cx} cy={cy} r={80} fill={config.color} opacity={0.04} />
-                <text x={cx} y={cy - 70} textAnchor="middle" fill={config.color} fontSize="10" fontFamily="Cinzel" opacity={0.6}>{config.name}</text>
+                <text x={cx} y={cy - 70} textAnchor="middle" fill={config.color} fontSize="10" style={{ fontFamily: 'var(--font-cinzel), serif' }} opacity={0.6}>{config.name}</text>
               </g>
             );
           })}
@@ -2240,7 +2240,7 @@ export default function InteractiveMap({
                   preserveAspectRatio="xMidYMid meet"
                 />
                 <rect x={pos.x - hitHalf} y={pos.y - hitHalf} width={hitHalf * 2} height={hitHalf * 2} fill="transparent" />
-                <text x={pos.x} y={pos.y + half + (8 / zoom)} textAnchor="middle" fill="#60a5fa" fontSize={7 / zoom} fontFamily="DM Sans" opacity={0.8}>{w.name}</text>
+                <text x={pos.x} y={pos.y + half + (8 / zoom)} textAnchor="middle" fill="#60a5fa" fontSize={7 / zoom} style={{ fontFamily: 'var(--font-dm-sans), sans-serif' }} opacity={0.8}>{w.name}</text>
               </g>
             );
           })}
@@ -2301,7 +2301,7 @@ export default function InteractiveMap({
                   preserveAspectRatio="xMidYMid meet"
                 />
                 <rect x={pos.x - hitHalf} y={pos.y - hitHalf} width={hitHalf * 2} height={hitHalf * 2} fill="transparent" />
-                <text x={pos.x} y={pos.y - half - (4 / zoom)} textAnchor="middle" fill="#fde047" fontSize={10 / zoom} fontWeight="bold" fontFamily="Cinzel" stroke="#000" strokeWidth={3 / zoom} strokeOpacity={0.7} paintOrder="stroke">{w.name}</text>
+                <text x={pos.x} y={pos.y - half - (4 / zoom)} textAnchor="middle" fill="#fde047" fontSize={10 / zoom} fontWeight="bold" style={{ fontFamily: 'var(--font-cinzel), serif' }} stroke="#000" strokeWidth={3 / zoom} strokeOpacity={0.7} paintOrder="stroke">{w.name}</text>
               </g>
             );
           })}
@@ -2310,7 +2310,7 @@ export default function InteractiveMap({
           {layers.areaLabels && AREA_LABELS.map((a) => {
             const pos = worldToScreen(a.x, a.y);
             const color = REGION_GROUPS[a.regionGroup]?.color || '#e0c068';
-            return <text key={`al-${a.id}`} x={pos.x} y={pos.y} textAnchor="middle" fill={color} fontSize="7" fontFamily="DM Sans" opacity={0.7}>{a.name}</text>;
+            return <text key={`al-${a.id}`} x={pos.x} y={pos.y} textAnchor="middle" fill={color} fontSize="7" style={{ fontFamily: 'var(--font-dm-sans), sans-serif' }} opacity={0.7}>{a.name}</text>;
           })}
 
           {/* NPC spotlight — ?npc=<id> deep link. Sky-blue halo so it's

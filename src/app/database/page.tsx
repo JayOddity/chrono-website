@@ -13,6 +13,7 @@ import {
   type MonsterSummary,
 } from '@/data/monsters';
 import { getNpcSummaries, type NpcSummary } from '@/data/npcs';
+import { pageMetadata } from '@/lib/metadata';
 
 const ITEMS_PER_PAGE = 100;
 const BESTIARY_PER_PAGE = 100;
@@ -24,10 +25,11 @@ const gradeOrder: Record<string, number> = {
   Legendary: 0, Epic: 1, Rare: 2, Uncommon: 3, Common: 4,
 };
 
-export const metadata: Metadata = {
-  title: 'Database - Chronotector',
+export const metadata: Metadata = pageMetadata({
+  title: 'Database',
   description: 'Browse items, enemies and NPCs from the Chrono Odyssey closed beta. Filter by category, grade, and more.',
-};
+  path: '/database',
+});
 
 function resolveType(raw: string | undefined): DatabaseType {
   if (raw === 'enemies' || raw === 'monsters') return 'enemies';

@@ -1,12 +1,14 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import TalentCalculator from './TalentCalculator';
+import { pageMetadata } from '@/lib/metadata';
 
-export const metadata: Metadata = {
-  title: 'Talent Calculator - Chrono Odyssey | Chronotector',
+export const metadata: Metadata = pageMetadata({
+  title: 'Talent Calculator',
   description:
-    'Plan your Chrono Odyssey build with our interactive talent calculator. Explore weapon mastery trees and class mastery skills for all 6 classes.',
-};
+    'Plan a Chrono Odyssey build with weapon mastery trees and class mastery skills across all six classes.',
+  path: '/talent-calculator',
+});
 
 export default function TalentCalculatorPage() {
   return (

@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/metadata';
 
-export const metadata: Metadata = {
-  title: 'System Requirements - Chronotector',
-  description: 'System Requirements - Chronotector',
-};
+export const metadata: Metadata = pageMetadata({
+  title: 'System Requirements',
+  description: 'Chrono Odyssey PC system requirements. Minimum: 16 GB RAM, GTX 1660 Ti. Recommended: 32 GB RAM, RTX 3070.',
+  path: '/system-requirements',
+});
 
 interface SpecRow {
   label: string;

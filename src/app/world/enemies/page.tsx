@@ -2,11 +2,13 @@ import Link from 'next/link';
 import { factions } from '@/data/world';
 import { bestiary, monsterSouls, type EnemyGrade } from '@/data/bestiary';
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/metadata';
 
-export const metadata: Metadata = {
-  title: 'Enemies - Chronotector',
+export const metadata: Metadata = pageMetadata({
+  title: 'Enemies',
   description: 'Bestiary of monsters, bosses, and faction enemies in Chrono Odyssey.',
-};
+  path: '/world/enemies',
+});
 
 const gradeColors: Record<EnemyGrade, string> = {
   HighBoss: 'text-red-400 border-red-500/40 bg-red-950/30',

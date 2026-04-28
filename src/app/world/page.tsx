@@ -3,11 +3,13 @@ import Image from 'next/image';
 import { factions } from '@/data/world';
 import { territories, hubName } from '@/data/territories';
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/metadata';
 
-export const metadata: Metadata = {
-  title: 'World - Chronotector',
+export const metadata: Metadata = pageMetadata({
+  title: 'World',
   description: 'The world of Setera: regions, factions, and notable locations.',
-};
+  path: '/world',
+});
 
 export default function WorldPage() {
   return (

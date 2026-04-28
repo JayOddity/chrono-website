@@ -3,6 +3,9 @@ import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { classes, getClassBySlug } from '@/data/classes';
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/metadata';
+import JsonLd from '@/components/JsonLd';
+import { breadcrumbSchema } from '@/lib/schema';
 
 export function generateStaticParams() {
   return classes.map((c) => ({ slug: c.slug }));
@@ -12,10 +15,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const cls = getClassBySlug(slug);
   if (!cls) return {};
-  return {
-    title: `${cls.name} - Chronotector`,
+  return pageMetadata({
+    title: cls.name,
     description: cls.description,
-  };
+    path: `/classes/${cls.slug}`,
+  });
 }
 
 export default async function ClassPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -27,6 +31,13 @@ export default async function ClassPage({ params }: { params: Promise<{ slug: st
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: 'Home', path: '/' },
+          { name: 'Classes', path: '/classes' },
+          { name: cls.name, path: `/classes/${cls.slug}` },
+        ])}
+      />
       {/* Hero */}
       <section className="mb-8">
         <Link href="/classes" className="text-sm text-accent-gold-dim hover:text-accent-gold transition-colors mb-4 inline-block">

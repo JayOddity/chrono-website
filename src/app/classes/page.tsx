@@ -2,11 +2,13 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { classes } from '@/data/classes';
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/metadata';
 
-export const metadata: Metadata = {
-  title: 'Classes - Chronotector',
+export const metadata: Metadata = pageMetadata({
+  title: 'Classes',
   description: 'All six playable classes in Chrono Odyssey: Assassin, Berserker, Paladin, Ranger, Sorcerer, and Swordsman.',
-};
+  path: '/classes',
+});
 
 export default function ClassesPage() {
   return (

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import type { Metadata } from 'next';
 import { classes } from '@/data/classes';
+import { pageMetadata } from '@/lib/metadata';
 
 const WEAPON_ICONS: Record<string, string> = {
   'Wrist Blades': '/images/game-icons/weapons/TX_ClassIcon_WristBlades.png',
@@ -24,10 +25,11 @@ const WEAPON_ICONS: Record<string, string> = {
   'Greatsword': '/images/game-icons/weapons/TX_ClassIcon_GreatSword.png',
 };
 
-export const metadata: Metadata = {
-  title: 'Weapons - Chronotector',
+export const metadata: Metadata = pageMetadata({
+  title: 'Weapons',
   description: 'All 18 weapons in Chrono Odyssey. Three weapons per class across six classes, with weapon swap on Q and four active abilities per weapon.',
-};
+  path: '/weapons',
+});
 
 export default function WeaponsPage() {
   const totalWeapons = classes.reduce((n, c) => n + c.weapons.length, 0);

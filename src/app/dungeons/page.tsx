@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import { dungeonTypes } from '@/data/dungeons';
+import { pageMetadata } from '@/lib/metadata';
 
-export const metadata: Metadata = {
-  title: 'Dungeons - Chronotector',
+export const metadata: Metadata = pageMetadata({
+  title: 'Dungeons',
   description: 'Expeditions, raids, labyrinths, trials and Chrono Gates of Setera.',
-};
+  path: '/dungeons',
+});
 
 // Drop entries that are obvious datamined placeholders or test rows.
 function isPlaceholder(name: string): boolean {

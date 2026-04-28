@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/metadata';
 
-export const metadata: Metadata = {
-  title: 'Activities - Chronotector',
+export const metadata: Metadata = pageMetadata({
+  title: 'Activities',
   description: 'Fishing, hunting, camp, and housing systems in Chrono Odyssey.',
-};
+  path: '/activities',
+});
 
 const fishingTiers = [
   { tier: 1, wait: '5-7 s', hook: '5 s' },

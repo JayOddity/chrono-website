@@ -10,6 +10,9 @@ import ItemLocationMap from '@/components/map/ItemLocationMap';
 import { getGatheringSource } from '@/data/item-gathering-sources';
 import { allItemSlugs, getItemIdBySlug, getItemSlug } from '@/data/item-slugs';
 import { getItemSources, type ItemSource } from '@/data/item-sources';
+import { pageMetadata } from '@/lib/metadata';
+import JsonLd from '@/components/JsonLd';
+import { breadcrumbSchema } from '@/lib/schema';
 
 export function generateStaticParams() {
   return allItemSlugs().map((slug) => ({ slug }));
@@ -19,11 +22,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const itemId = getItemIdBySlug(slug);
   const detail = itemId !== undefined ? getItemDetail(itemId) : null;
-  if (!detail) return { title: 'Item Not Found - Chronotector' };
-  return {
-    title: detail.name + ' - Item Database - Chronotector',
-    description: detail.description || detail.name + ' is a ' + detail.grade + ' ' + detail.typeDisplay + ' in Chrono Odyssey.',
-  };
+  if (!detail) return { title: 'Item Not Found' };
+  return pageMetadata({
+    title: `${detail.name} (${detail.grade} ${detail.typeDisplay})`,
+    description: detail.description || `${detail.name} is a ${detail.grade} ${detail.typeDisplay} in Chrono Odyssey.`,
+    path: `/database/${slug}`,
+  });
 }
 
 export default async function ItemDetailPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -76,6 +80,13 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ slu
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: 'Home', path: '/' },
+          { name: 'Database', path: '/database' },
+          { name: detail.name, path: `/database/${slug}` },
+        ])}
+      />
       {/* Ambient grade halo behind content */}
       <div
         aria-hidden

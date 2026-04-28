@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import { factions } from '@/data/world';
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/metadata';
 
-export const metadata: Metadata = {
-  title: 'Lore - Chronotector',
-  description: 'Lore - Chronotector',
-};
+export const metadata: Metadata = pageMetadata({
+  title: 'Lore',
+  description: 'The lore of Setera: the Chrono Stones, the gods, the factions, and the war that shaped the world of Chrono Odyssey.',
+  path: '/world/lore',
+});
 
 export default function LorePage() {
   return (

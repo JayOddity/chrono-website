@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { pageMetadata } from '@/lib/metadata';
 
-export const metadata: Metadata = {
-  title: 'Item Systems - Chronotector',
+export const metadata: Metadata = pageMetadata({
+  title: 'Item Systems',
   description: 'Perks, gems, and reinforcement mechanics for Chrono Odyssey gear.',
-};
+  path: '/database/systems',
+});
 
 const perkSummary = {
   unique: 84,

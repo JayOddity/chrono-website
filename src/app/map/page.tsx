@@ -1,11 +1,13 @@
 import type { Metadata } from 'next';
 import InteractiveMap from './InteractiveMap';
+import { pageMetadata } from '@/lib/metadata';
 
-export const metadata: Metadata = {
-  title: 'Interactive Map - Chrono Odyssey | Chronotector',
+export const metadata: Metadata = pageMetadata({
+  title: 'Interactive Map',
   description:
-    'Explore the world of Setera with our interactive map. Find warp points, settlements, monster spawns, dungeons, and more.',
-};
+    'Interactive map of Setera. Warp points, settlements, monster spawns, NPCs, and dungeons across the Chrono Odyssey world.',
+  path: '/map',
+});
 
 export default function MapPage() {
   return (

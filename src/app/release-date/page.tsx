@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
+import { pageMetadata } from '@/lib/metadata';
 
-export const metadata: Metadata = {
-  title: 'Release Date - Chronotector',
-  description: 'Release Date - Chronotector',
-};
+export const metadata: Metadata = pageMetadata({
+  title: 'Release Date',
+  description: 'Chrono Odyssey targets a Q1 2027 launch on PC, PS5, and Xbox Series X. Beta history, platform support, and the road to release.',
+  path: '/release-date',
+});
 
 export default function ReleaseDatePage() {
   return (

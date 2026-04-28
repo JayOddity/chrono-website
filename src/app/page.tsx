@@ -1,7 +1,18 @@
 import Link from 'next/link';
 import Image from 'next/image';
+import type { Metadata } from 'next';
 import { getSteamNews, steamBBCodeToText } from '@/lib/steam';
 import { sanityClient, urlFor } from '@/lib/sanity';
+import { pageMetadata } from '@/lib/metadata';
+import JsonLd from '@/components/JsonLd';
+import { videoGameSchema } from '@/lib/schema';
+
+export const metadata: Metadata = pageMetadata({
+  title: 'Chronotector | Chrono Odyssey News, Database, Map',
+  description: 'Chrono Odyssey MMO news, item and bestiary database, interactive map of Setera, talent calculator, and class guides for the Chrono Odyssey Studios MMO.',
+  path: '/',
+  absoluteTitle: true,
+});
 
 interface SanityNews {
   _id: string;
@@ -96,12 +107,13 @@ export default async function HomePage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+      <JsonLd data={videoGameSchema()} />
       {/* Things to Check Out */}
       <section className="mb-12">
         <h2 className="font-heading text-xl text-accent-gold mb-4">Things to Check Out</h2>
         <div className="grid grid-cols-3 gap-4">
           <Link href="/#news" className="group relative aspect-video rounded-lg overflow-hidden border border-border-subtle hover:border-accent-gold-dim transition-colors">
-            <Image src={STEAM_FALLBACK_IMAGES[1]} alt="News" fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="33vw" />
+            <Image src={STEAM_FALLBACK_IMAGES[1]} alt="News" fill priority className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="33vw" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
             <span className="absolute bottom-3 left-3 font-heading text-2xl text-white">News</span>
           </Link>

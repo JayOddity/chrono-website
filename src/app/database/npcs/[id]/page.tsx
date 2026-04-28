@@ -3,6 +3,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getNpcDetail } from '@/data/npcs';
 import NpcLocationMap from '@/components/map/NpcLocationMap';
+import { pageMetadata } from '@/lib/metadata';
+import JsonLd from '@/components/JsonLd';
+import { breadcrumbSchema } from '@/lib/schema';
 
 export async function generateMetadata({
   params,
@@ -12,11 +15,12 @@ export async function generateMetadata({
   const { id } = await params;
   const characterId = parseInt(id, 10);
   const detail = Number.isFinite(characterId) ? getNpcDetail(characterId) : null;
-  if (!detail) return { title: 'NPC Not Found - Chronotector' };
-  return {
-    title: `${detail.name} - NPCs - Chronotector`,
+  if (!detail) return { title: 'NPC Not Found' };
+  return pageMetadata({
+    title: detail.name,
     description: `${detail.name} is an NPC with ${detail.pinCount} known location${detail.pinCount === 1 ? '' : 's'} in Chrono Odyssey.`,
-  };
+    path: `/database/npcs/${detail.characterId}`,
+  });
 }
 
 export default async function NpcDetailPage({
@@ -35,6 +39,14 @@ export default async function NpcDetailPage({
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: 'Home', path: '/' },
+          { name: 'Database', path: '/database' },
+          { name: 'NPCs', path: '/database?type=npcs' },
+          { name: detail.name, path: `/database/npcs/${detail.characterId}` },
+        ])}
+      />
       <div className="mb-6">
         <div className="text-sm text-text-muted mb-2">
           <Link href="/database" className="hover:text-accent-gold">Database</Link>

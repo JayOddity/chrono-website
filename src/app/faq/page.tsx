@@ -1,20 +1,28 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { pageMetadata } from '@/lib/metadata';
+import JsonLd from '@/components/JsonLd';
+import { faqPageSchema, breadcrumbSchema } from '@/lib/schema';
 
-export const metadata: Metadata = {
-  title: 'FAQ - Chronotector',
+export const metadata: Metadata = pageMetadata({
+  title: 'FAQ',
   description:
     'Frequently asked questions about Chrono Odyssey: release date, platforms, monetisation, system requirements, and more.',
-};
+  path: '/faq',
+});
 
 interface FaqItem {
   q: string;
   a: React.ReactNode;
+  /** Plain-text answer used for FAQPage JSON-LD. */
+  plain: string;
 }
 
 const faq: FaqItem[] = [
   {
     q: 'When does Chrono Odyssey release?',
+    plain:
+      'Kakao Games is targeting Q1 2027 for full launch. The window has shifted from the original Q4 2025 to Q4 2026 to Q1 2027 as disclosed in Kakao quarterly reports.',
     a: (
       <>
         Kakao Games is targeting <strong>Q1 2027</strong> for full launch. The window has
@@ -29,6 +37,7 @@ const faq: FaqItem[] = [
   },
   {
     q: 'What platforms will the game be available on?',
+    plain: 'PC (Steam and Epic Games Store), PlayStation 5, and Xbox Series X|S.',
     a: (
       <>
         PC (Steam and Epic Games Store), PlayStation 5, and Xbox Series X|S.
@@ -37,6 +46,8 @@ const faq: FaqItem[] = [
   },
   {
     q: 'Who is making Chrono Odyssey?',
+    plain:
+      'Developed by Chrono Odyssey Studios (formerly known as NPIXEL) and published by Kakao Games.',
     a: (
       <>
         Developed by <strong>Chrono Odyssey Studios</strong> (formerly known as NPIXEL)
@@ -46,10 +57,13 @@ const faq: FaqItem[] = [
   },
   {
     q: 'What engine does it use?',
+    plain: 'Unreal Engine 5.',
     a: <>Unreal Engine 5.</>,
   },
   {
     q: 'Is Chrono Odyssey pay to win?',
+    plain:
+      'Kakao has stated the game will be buy to play with no pay to win mechanics. Monetisation is expected to focus on cosmetics. Full details have not yet been announced.',
     a: (
       <>
         Kakao has stated the game will be <strong>buy to play with no pay to win
@@ -60,6 +74,8 @@ const faq: FaqItem[] = [
   },
   {
     q: 'Has there been a beta?',
+    plain:
+      'Yes the first closed beta ran June 20-22, 2025 on PC, peaking at around 65,000 concurrent players on Steam. A second beta window has not been officially dated yet.',
     a: (
       <>
         Yes the first closed beta ran <strong>June 20 22, 2025</strong> on PC, peaking
@@ -70,6 +86,8 @@ const faq: FaqItem[] = [
   },
   {
     q: 'Where can I find the game on Steam?',
+    plain:
+      'Steam App ID 2873440. https://store.steampowered.com/app/2873440/Chrono_Odyssey/',
     a: (
       <>
         Steam App ID <strong>2873440</strong> {' '}
@@ -86,6 +104,7 @@ const faq: FaqItem[] = [
   },
   {
     q: 'Where is the official Chrono Odyssey site?',
+    plain: 'https://chronoodyssey.kakaogames.com/',
     a: (
       <>
         <a
@@ -101,6 +120,8 @@ const faq: FaqItem[] = [
   },
   {
     q: 'Is this site affiliated with the developers?',
+    plain:
+      'No. Chronotector is an independent fan project. Chrono Odyssey and all related assets are property of Chrono Odyssey Studios and Kakao Games. Content here is sourced from official channels and community datamining from the June 2025 closed beta.',
     a: (
       <>
         No. Chronotector is an independent fan project. Chrono Odyssey and all related
@@ -138,6 +159,15 @@ const specs: SpecRow[] = [
 export default function FaqPage() {
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+      <JsonLd
+        data={[
+          faqPageSchema(faq.map((it) => ({ question: it.q, answer: it.plain }))),
+          breadcrumbSchema([
+            { name: 'Home', path: '/' },
+            { name: 'FAQ', path: '/faq' },
+          ]),
+        ]}
+      />
       <header className="pt-4 pb-8">
         <h1 className="font-heading text-4xl text-accent-gold mb-2">FAQ</h1>
         <p className="text-text-muted">

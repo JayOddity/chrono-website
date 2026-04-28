@@ -23,11 +23,11 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const item = await getSteamNewsItem(id);
-  if (!item) return { title: 'Post Not Found - Chronotector' };
+  if (!item) return { title: 'Post Not Found' };
 
   const description = steamBBCodeToText(item.contents).slice(0, 160);
   return {
-    title: item.title + ' - Chronotector',
+    title: item.title,
     description,
     // Canonical points back to the original Steam announcement so search engines
     // treat that URL as authoritative — no duplicate-content penalty for us.

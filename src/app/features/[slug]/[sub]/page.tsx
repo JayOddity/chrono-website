@@ -5,6 +5,9 @@ import { gradeTextColor } from '@/components/database/GradeBadge';
 import { ProfessionSubPageLayout } from '@/components/features/ProfessionsFeatureLayout';
 import { getItemSlug } from '@/data/item-slugs';
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/metadata';
+import JsonLd from '@/components/JsonLd';
+import { breadcrumbSchema } from '@/lib/schema';
 
 export function generateStaticParams() {
   return features.flatMap((f) =>
@@ -17,10 +20,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const feature = getFeatureBySlug(slug);
   const sp = feature?.subPages?.find((p) => p.slug === sub);
   if (!feature || !sp) return {};
-  return {
-    title: `${sp.name} - ${feature.name} - Chronotector`,
+  return pageMetadata({
+    title: `${sp.name} (${feature.name})`,
     description: sp.tagline,
-  };
+    path: `/features/${feature.slug}/${sp.slug}`,
+  });
 }
 
 export default async function SubFeaturePage({ params }: { params: Promise<{ slug: string; sub: string }> }) {
@@ -38,6 +42,14 @@ export default async function SubFeaturePage({ params }: { params: Promise<{ slu
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: 'Home', path: '/' },
+          { name: 'Features', path: '/features' },
+          { name: feature.name, path: `/features/${feature.slug}` },
+          { name: sp.name, path: `/features/${feature.slug}/${sp.slug}` },
+        ])}
+      />
       <section className="pt-8 pb-4">
         <Link href={`/features/${feature.slug}`} className="text-sm text-accent-gold-dim hover:text-accent-gold transition-colors mb-4 inline-block">
           &larr; {feature.name}

@@ -6,6 +6,9 @@ import { gradeTextColor } from '@/components/database/GradeBadge';
 import { ProfessionsFeatureLayout } from '@/components/features/ProfessionsFeatureLayout';
 import { getItemSlug } from '@/data/item-slugs';
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/metadata';
+import JsonLd from '@/components/JsonLd';
+import { breadcrumbSchema } from '@/lib/schema';
 
 export function generateStaticParams() {
   return features.map((f) => ({ slug: f.slug }));
@@ -15,10 +18,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const feature = getFeatureBySlug(slug);
   if (!feature) return {};
-  return {
-    title: `${feature.name} - Chronotector`,
+  return pageMetadata({
+    title: feature.name,
     description: feature.tagline,
-  };
+    path: `/features/${feature.slug}`,
+  });
 }
 
 export default async function FeaturePage({ params }: { params: Promise<{ slug: string }> }) {
@@ -34,6 +38,13 @@ export default async function FeaturePage({ params }: { params: Promise<{ slug: 
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: 'Home', path: '/' },
+          { name: 'Features', path: '/features' },
+          { name: feature.name, path: `/features/${feature.slug}` },
+        ])}
+      />
       <section className="pt-8 pb-4">
         <Link href="/features" className="text-sm text-accent-gold-dim hover:text-accent-gold transition-colors mb-4 inline-block">
           &larr; All Features

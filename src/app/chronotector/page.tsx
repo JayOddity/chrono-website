@@ -1,11 +1,13 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import { chronotectorActions } from '@/data/chronotector';
+import { pageMetadata } from '@/lib/metadata';
 
-export const metadata: Metadata = {
-  title: 'The Chronotector - Chronotector',
+export const metadata: Metadata = pageMetadata({
+  title: 'The Chronotector',
   description: 'The signature time manipulation device that gives Chrono Odyssey its name.',
-};
+  path: '/chronotector',
+});
 
 export default function ChronotectorPage() {
   return (

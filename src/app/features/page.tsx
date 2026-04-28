@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import { features } from '@/data/features';
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/metadata';
 
-export const metadata: Metadata = {
-  title: 'Features - Chronotector',
+export const metadata: Metadata = pageMetadata({
+  title: 'Features',
   description: 'Chrono Odyssey features: combat, crafting, gameplay, PvP, and PvE.',
-};
+  path: '/features',
+});
 
 export default function FeaturesPage() {
   return (

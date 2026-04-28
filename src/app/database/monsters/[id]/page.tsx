@@ -8,6 +8,9 @@ import {
   GRADE_LABELS,
 } from '@/data/monsters';
 import MonsterLocationMap from '@/components/map/MonsterLocationMap';
+import { pageMetadata } from '@/lib/metadata';
+import JsonLd from '@/components/JsonLd';
+import { breadcrumbSchema } from '@/lib/schema';
 
 export async function generateMetadata({
   params,
@@ -17,12 +20,13 @@ export async function generateMetadata({
   const { id } = await params;
   const monsterId = parseInt(id, 10);
   const detail = Number.isFinite(monsterId) ? getMonsterDetail(monsterId) : null;
-  if (!detail) return { title: 'Monster Not Found - Chronotector' };
+  if (!detail) return { title: 'Monster Not Found' };
   const gradeLabel = GRADE_LABELS[detail.grade] ?? detail.grade;
-  return {
-    title: `${detail.name} - Bestiary - Chronotector`,
+  return pageMetadata({
+    title: `${detail.name} (${gradeLabel})`,
     description: `${detail.name} (${gradeLabel}) spawns in ${detail.pinCount} location${detail.pinCount === 1 ? '' : 's'} across Setera. ${detail.totalSpawns} total spawn points from the June 2025 CBT data.`,
-  };
+    path: `/database/monsters/${detail.monsterId}`,
+  });
 }
 
 export default async function MonsterDetailPage({
@@ -44,6 +48,14 @@ export default async function MonsterDetailPage({
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: 'Home', path: '/' },
+          { name: 'Database', path: '/database' },
+          { name: 'Enemies', path: '/database?type=enemies' },
+          { name: detail.name, path: `/database/monsters/${detail.monsterId}` },
+        ])}
+      />
       <div className="mb-6">
         <div className="text-sm text-text-muted mb-2">
           <Link href="/database" className="hover:text-accent-gold">Database</Link>
