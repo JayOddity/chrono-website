@@ -1,12 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState } from 'react';
 import GlobalSearch from './GlobalSearch';
 
 interface HeaderProps {
   siteName: string;
-  siteAbbrev: string;
 }
 
 interface SubMenuItem {
@@ -102,7 +102,7 @@ const navItems: NavItem[] = [
   },
 ];
 
-export default function Header({ siteName, siteAbbrev }: HeaderProps) {
+export default function Header({ siteName }: HeaderProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
@@ -115,9 +115,14 @@ export default function Header({ siteName, siteAbbrev }: HeaderProps) {
           <div className="flex items-center h-12 gap-4">
             {/* Logo */}
             <Link href="/" className="shrink-0 flex items-center gap-2">
-              <div className="w-8 h-8 bg-accent-gold rounded flex items-center justify-center text-void-black font-bold text-sm">
-                {siteAbbrev}
-              </div>
+              <Image
+                src="/logo.png"
+                alt={`${siteName} logo`}
+                width={32}
+                height={32}
+                priority
+                className="w-8 h-8 object-contain"
+              />
               <span className="font-heading text-lg text-text-primary hidden sm:inline">{siteName}</span>
             </Link>
 

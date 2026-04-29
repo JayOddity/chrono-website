@@ -21,7 +21,6 @@ const dmSans = DM_Sans({
 });
 
 const SITE_NAME = "Chronotector";
-const SITE_ABBREV = "CT";
 const SITE_URL = "https://chronotector.com";
 const SITE_DESCRIPTION = "Chrono Odyssey MMO News & Guides";
 
@@ -53,9 +52,9 @@ export default function RootLayout({
     <html lang="en" className={`h-full antialiased ${cinzel.variable} ${dmSans.variable}`}>
       <body className="min-h-full flex flex-col">
         <JsonLd data={[websiteSchema(), organizationSchema()]} />
-        <Header siteName={SITE_NAME} siteAbbrev={SITE_ABBREV} />
+        <Header siteName={SITE_NAME} />
         <main className="flex-1">{children}</main>
-        <Footer siteName={SITE_NAME} siteAbbrev={SITE_ABBREV} />
+        <Footer siteName={SITE_NAME} />
       </body>
     </html>
   );

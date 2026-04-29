@@ -34,14 +34,6 @@ export default function ItemFilters() {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-3">
-        <input
-          type="text"
-          placeholder="Search items..."
-          defaultValue={currentSearch}
-          onChange={(e) => setParam('q', e.target.value)}
-          className="flex-1 min-w-[200px] bg-deep-night border border-border-subtle rounded px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-gold-dim focus:outline-none"
-        />
-
         <select
           value={currentCategory}
           onChange={(e) => setParam('category', e.target.value)}
@@ -86,6 +78,13 @@ export default function ItemFilters() {
           ))}
         </select>
 
+        <input
+          type="text"
+          placeholder="Search items..."
+          defaultValue={currentSearch}
+          onChange={(e) => setParam('q', e.target.value)}
+          className="ml-auto flex-1 min-w-[200px] bg-deep-night border border-border-subtle rounded px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-gold-dim focus:outline-none"
+        />
       </div>
     </div>
   );

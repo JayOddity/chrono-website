@@ -1,8 +1,8 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 interface FooterProps {
   siteName: string;
-  siteAbbrev: string;
 }
 
 const footerLinks = [
@@ -57,7 +57,7 @@ const footerLinks = [
   },
 ];
 
-export default function Footer({ siteName, siteAbbrev }: FooterProps) {
+export default function Footer({ siteName }: FooterProps) {
   return (
     <footer className="bg-deep-night border-t border-border-subtle mt-auto">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
@@ -100,9 +100,13 @@ export default function Footer({ siteName, siteAbbrev }: FooterProps) {
         {/* Bottom */}
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-text-muted">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 bg-accent-gold rounded flex items-center justify-center text-void-black font-bold text-[10px]">
-              {siteAbbrev}
-            </div>
+            <Image
+              src="/logo.png"
+              alt={`${siteName} logo`}
+              width={20}
+              height={20}
+              className="w-5 h-5 object-contain"
+            />
             <span>{siteName} Fan Site</span>
           </div>
           <p className="text-center">
